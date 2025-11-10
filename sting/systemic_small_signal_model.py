@@ -349,7 +349,7 @@ class Composite_small_signal_model:
                             [F31, F32, F33],
                             [F41, F42, F43] ])
         
-        G11 = np.eye(g_gen)
+        G11 = np.eye(d_gen)
         G21 = np.zeros((g_gen, d_gen))
         G31 = np.zeros((g_sh, d_gen))
         G41 = np.zeros((g_br, d_gen))
