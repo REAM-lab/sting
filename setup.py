@@ -18,7 +18,7 @@ setup(
             'Topic :: Scientific/Engineering',
             'Topic :: Software Development :: Libraries :: Python Modules',
         ],
-        python_requires='>=3.14',
+        python_requires='>=3.12',
         install_requires=[
             "gamspy",
 	    "importlib",
