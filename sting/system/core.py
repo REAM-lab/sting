@@ -3,7 +3,7 @@ import pandas as pd
 import importlib
 import os
 from typing import get_type_hints
-import matlab.engine
+#import matlab.engine
 
 # Import src packages
 from sting.utils import data_tools
@@ -13,22 +13,6 @@ class System:
 
     def __init__(self):
 
-        color1 = "\033[93m"
-        color2 = "\033[0m"
-
-        logo1 = (
-        r"   ______  " + color1 + r" __" + color2 + "\n"       
-        r"  / __/ /_" + color1 + r"_/ /" + color2 + r"_  _____ _" + "\n"
-        r" _\ \/ __" + color1 + r"/ _/" + color2 + r"/ \/ / _ `/" + "\n"
-        r"/___/__/" + color1 + r"//  " + color2 + r"/_/\_/\_, /"  + "\n"
-        r"       " + color1 + r"/   " + color2 + r"      /___/  ")
-
-        #print("=" * 25)
-        print(logo1)
-        #print("\u26A1 STING 0.1.0 \u26A1")
-        print("\nVersion: 0.1.0 (2025-11-05)")
-        print("=" * 40)
-        print('\n')
         print("> System initialization: \n")
 
         # Read a csv file that contains the information of the component types
@@ -172,6 +156,7 @@ class System:
         self.pa_rc = pa_rc # assign new list of components. The previous list will be deleted.
         print("  - New list of parallel rc components created ... ok \n")
 
+    # TODO: Next three function should use a common an apply to components method
     def transfer_power_flow_solution_to_components(self, power_flow_instance):
 
         for type in self.component_types:
@@ -201,13 +186,13 @@ class System:
 
     def export_components_data_as_matlab_file(self, matlab_session_name = None):
 
-        current_matlab_sessions = matlab.engine.find_matlab()
+        current_matlab_sessions = None #matlab.engine.find_matlab()
 
         if not matlab_session_name in current_matlab_sessions:
             print('> Initiate Matlab session, as a session was not founded or entered.')
-            eng = matlab.engine.start_matlab()
+            #eng = matlab.engine.start_matlab()
         else:
-            eng = matlab.engine.connect_matlab(matlab_session_name)
+            #eng = matlab.engine.connect_matlab(matlab_session_name)
             print(f'> Connect to Matlab session: {matlab_session_name} ... ok.')
     
         components_types = self.component_types
@@ -216,6 +201,6 @@ class System:
 
             components_dict = [data_tools.convert_class_instance_to_dictionary(i) for i in components]
 
-            eng.workspace[typ] = components_dict
+            #eng.workspace[typ] = components_dict
 
-        eng.quit()
+        #eng.quit()

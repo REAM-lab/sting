@@ -21,10 +21,12 @@ setup(
         python_requires='>=3.12',
         install_requires=[
             "gamspy",
-	    "importlib",
-	    "pandas",
-	    "numpy",
+            "importlib",
+            "pandas",
+            "numpy",
             "scipy",
-            "tabulate"
+            "tabulate", 
+            "matlab",
+            "matplotlib"
         ],
     )

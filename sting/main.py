@@ -1,6 +1,6 @@
 import numpy as np
 from itertools import chain
-
+import sting
 from sting.system.core import System
 from sting.utils import linear_systems_tools 
 from sting.utils.power_flow import Power_flow
@@ -8,6 +8,8 @@ from sting.systemic_small_signal_model import Composite_small_signal_model
 
 def run_ssm():
 
+    print(sting.__logo__)
+    
     sys = System() 
 
     sys.load_components_via_input_csv_files()

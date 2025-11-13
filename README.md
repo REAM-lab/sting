@@ -5,14 +5,14 @@ Welcome! This repository contains the STING—**S**pecialized **T**ool for **IN*
 ## Installation 
 
 
-1. **Download STING**: Make sure you have [python3.14](https://www.python.org/downloads/) (or greater) installed on your computer. Start by cloning this repository and navigating into the STING directory.
+1. **Download STING**: Make sure you have [python3.12](https://www.python.org/downloads/) (or greater) installed on your computer. Start by cloning this repository and navigating into the STING directory.
     ```
     $ git clone https://github.com/REAM-lab/STING
     $ cd STING
     ```
     Next, create a virtual environment and download all required packages.
     ```
-    $ python3.14 -m venv .venv 
+    $ python3.12 -m venv .venv 
     $ source .venv/bin/activate
     (.venv)$ pip install -e .  
     ```
@@ -34,7 +34,3 @@ Welcome! This repository contains the STING—**S**pecialized **T**ool for **IN*
     >>> from sting.main import run_ssm
     >>> run_ssm()
     ```
-
-## TODOs
-1. Model reduction module
-2. Additional docs

@@ -79,3 +79,44 @@ def convert_class_instance_to_dictionary(instance: object, excluded_attributes =
     dicty = {key: (asdict(value) if is_dataclass(value) else value) for key, value in dicty.items() }
 
     return dicty
+
+
+def matrix_to_csv(filepath, matrix, index, columns):
+    df = pd.DataFrame(matrix, index=index , columns=columns)
+    df.to_csv(filepath)
+
+def mat2cell(A, m, n):
+    """Python clone of MATLAB mat2cell"""
+    # Create a list of lists to hold the sub-arrays
+    cell_array = []
+    row_start = 0
+    for r_size in m:
+        col_start = 0
+        row_list = []
+        for c_size in n:
+            sub_matrix = A[row_start : row_start + r_size, col_start : col_start + c_size]
+            row_list.append(sub_matrix)
+            col_start += c_size
+        cell_array.append(row_list)
+        row_start += r_size
+
+    return np.array(cell_array, dtype=object)
+
+def cell2mat(C):
+    """Python clone of MATLAB cell2mat"""
+    return np.vstack([np.hstack(row) for row in C])
+
+
+def block_permute(X, rows, cols, index):
+    # Returns a matrix Y whose block matrix entries (given by rows and
+    # cols) have been re-ordered according to an index.
+    X = mat2cell(X, rows, cols)
+    Y = np.empty(X.shape, dtype=object)
+    
+    for i in range(X.shape[0]):
+        for j in range(X.shape[1]):
+            # Y_ij = X_nm where the index maps n/m to i/j
+            n = index[i]
+            m = index[j]
+            Y[i,j] = X[n,m]
+    return cell2mat(Y)

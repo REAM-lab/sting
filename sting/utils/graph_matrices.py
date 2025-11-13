@@ -1,6 +1,6 @@
 import numpy as np
-import pandas as pd
-import collections as col
+from scipy.linalg import block_diag 
+#from sting.models import ComponentConnections
 
 
 def build_admittance_matrix(num_buses: int, branch_data=None, shunt_data=None):
@@ -84,3 +84,135 @@ def build_oriented_incidence_matrix( num_buses: int, branch_data: list):
         or_inc[branch_data[k][1],k] = +1
 
     return or_inc
+
+
+def build_ccm_matrices(system, generators, branches, shunts):
+        """
+        
+        """
+        # Get the number of buses of the full system
+        num_buses = len(system.bus)
+
+        # List that will contain the connecting bus of all the generators 
+        # Note that the first item is the connecting bus of the first generator, 
+        # the second item is the connecting bus of the second generator.
+        # 'list_of_gens' is for example [inf_src[0], inf_src[1]]
+        # Note that the order is respected. The list 'generator_types_list' has been used in previous methods
+        gen_bus_connections = []
+        list_of_gentypes = system.generator_types_list
+        for typ in list_of_gentypes:
+            list_of_gens = getattr(system, typ)
+            gen_bus_connections.extend([g.bus_idx for g in list_of_gens])
+
+        # Build generation connection matrix
+        gen_cx = build_generation_connection_matrix(num_buses, gen_bus_connections)
+        
+        
+        # List that will contain the tuples (from_bus, to_bus) of the branches
+        # 'list_of_branches' is for example [se_rl[0], se_rl[1]]
+        # Note that the order is respected. The list 'branch_types_list' has been used in previous methods
+        branch_frombus_tobus = []
+        list_of_branchtypes = system.branch_types_list
+        for typ in list_of_branchtypes:
+            list_of_branches = getattr(system, typ)
+            branch_frombus_tobus.extend([(b.from_bus, b.to_bus) for b in list_of_branches])
+
+        # Build oriented incidence matrix
+        or_inc = build_oriented_incidence_matrix(num_buses, branch_frombus_tobus)
+
+        # Build unoriented incidence matrix
+        un_inc = abs(or_inc)
+
+        d_gen = sum(generators.u.v_type == 'device') # number of generator device-side inputs 
+        g_gen = sum(generators.u.v_type == 'grid')   # number of generator grid-side inputs 
+        y_gen = len(generators.y)                    # number of generator outputs
+        g_br = sum(branches.u.v_type == 'grid')      # number of branch grid-side inputs 
+        y_br = len(branches.y)                       # number of branch outputs
+        g_sh = sum(shunts.u.v_type == 'grid')        # number of shunt grid-side inputs 
+        y_sh = len(shunts.y)                         # number of shunt output
+        y = y_gen + y_sh + y_br                      # number of system outputs
+
+        # Construct matrix F. We first build its blocks.
+        F11 = np.zeros( (d_gen, y_gen) )
+        F12 = np.zeros( (d_gen, y_sh) )
+        F13 = np.zeros( (d_gen, y_br) )
+
+        F21 = np.zeros( (g_gen, y_gen) )
+        F22 = np.kron( gen_cx, np.eye(2) )
+        F23 = np.zeros( (g_gen, y_br) )
+
+        F31 = np.kron( np.transpose(gen_cx), np.eye(2))
+        F32 = np.zeros( (g_sh, y_sh) )
+        F33 = np.kron( or_inc, np.eye(2) )
+
+        F41 = np.zeros( (g_br, y_gen) )
+        F42 = np.kron( 0.5*(np.kron( np.transpose(un_inc) , np.array([[1], [1]]) )
+                            + np.kron( np.transpose(or_inc) , np.array([[-1], [1]]) ) ) 
+                             , np.eye(2) )
+        F43 = np.zeros( (g_br, y_br) )
+
+        F = np.block( [[F11, F12, F13],
+                       [F21, F22, F23],
+                       [F31, F32, F33],
+                       [F41, F42, F43] ])
+        
+        # Construct matrix G. We first build its blocks.
+        G11 = np.eye(d_gen)
+        G21 = np.zeros((g_gen, d_gen))
+        G31 = np.zeros((g_sh, d_gen))
+        G41 = np.zeros((g_br, d_gen))
+
+        G = np.block([[G11], 
+                      [G21],
+                      [G31],
+                      [G41]])
+        
+        # Construct matrix H and L
+        H = np.eye(y)
+        L = np.zeros((y, d_gen))
+
+        # TODO: Add u and y grid/stack
+
+        return F, G, H, L
+
+
+def build_ccm_permutations(system):
+    """
+    Build the permutation matrices from Lemma 1 and 2. 
+    """
+    # Create empty lists for transformations, list order follows that of generator_types_list
+    Y1, Y2, T1 = [], [], []
+
+    # Iterate over the list of types: [inf_src, gfli_a, gfli_b, ...]
+    for typ in system.generator_types_list: 
+        # Get the list of generators, for example, list_of_gens = [inf_src[0], inf_src[1]]
+        # Each item in this list is a class instance
+        gens = getattr(system, typ) 
+        if not gens: # Continue if the list is empty
+            continue
+        
+        # Note: all generators in 'gens' of the same class and will have 
+        # the same inputs and outputs. Thus, we only need to examine gen_0.
+        v_type = gens[0].ssm.u.v_type # input types either 'grid' or 'device'
+        n = len(gens)                 # number of generators
+        d = sum(v_type == 'device')   # number of device-side inputs 
+        g = sum(v_type == 'grid')     # number of grid-side inputs 
+
+        # Build transformation (permutation) matrices
+        X1 = np.kron(np.eye(n), 
+                            np.hstack( ( np.eye(d), np.zeros((d, g)) ) ) )
+        X2 = np.kron(np.eye(n), 
+                            np.hstack( ( np.zeros((g, d)), np.eye(g) ) ) )
+        T1.append(np.linalg.inv(np.vstack((X1, X2))) )
+
+        # Also, append transformations that are used later
+        Y1.append(np.hstack(( np.eye(n*d), np.zeros((n*d, n*g)) )) )
+        Y2.append(np.hstack(( np.zeros((n*g, n*d)), np.eye(n*g) )) )
+
+    T1 = block_diag(*T1)
+    # Build transformations
+    Y1 = block_diag(*Y1)
+    Y2 = block_diag(*Y2)
+    T2 = np.linalg.inv( np.vstack((Y1, Y2)) )
+
+    return T1, T2
