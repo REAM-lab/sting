@@ -7,6 +7,8 @@
 - Variable/State descriptions
     - Can we put this in the globally scoped atrrs of each class?
 - Update gen models to new state-space model
+- Update naming to camelcase classes 
+- Auto detect input files in system start up when reading from CSVs
 
 ## Adam Subtasks
 1. Testing

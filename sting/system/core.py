@@ -6,22 +6,13 @@ from typing import get_type_hints
 from dataclasses import make_dataclass, field
 #import matlab.engine
 
-# Import src packages
-# from sting.utils import data_tools
 import sting
 from sting import data_files
 from sting.line.pi_model import decompose_lines 
-#from sting.shunt.paralle_rc import combine_shunts
+from sting.shunt.paralle_rc import combine_shunts
 from sting.utils.graph_matrices import get_ccm_matrices
 from sting.models.StateSpaceModel import StateSpaceModel
 
-# Need some kind of list tracking the global ordering of all components? Right,
-# now this is implicitly controlled by the grid_components dataframe but we need
-# more control... This could be done by making each Zone a "component"? self.to_zones()
-# zone1 == [_, _, _, ]
-# zone2 == [_, _]
-# etc.... basically this is like a reindex option. Base is to index by c_name but 
-# maybe we want to build an index on zone, or gen or something else entirely... 
 
 class System: 
 
@@ -79,6 +70,7 @@ class System:
     @classmethod
     def from_csv(cls, inputs_directory=None, active_components=None):
         #TODO: Auto detect active components from input files
+        
         if not inputs_directory:
             inputs_directory = os.path.join(os.getcwd(), 'inputs')
 
@@ -121,7 +113,6 @@ class System:
                 
             print("... ok.")
 
-        
         return self
         
         

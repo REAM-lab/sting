@@ -1,5 +1,5 @@
-# import numpy as np
-# from itertools import chain
+import os
+
 from sting.system.core import System
 from sting.utils import linear_systems_tools 
 from sting.utils.power_flow import PowerFlow
@@ -20,5 +20,9 @@ def run_ssm():
 
     # Analysis of final system stability
     linear_systems_tools.modal_analisis(ssm.A, show=True)
+    
+    # Save the interconnected system model
+    path = os.path.join(os.getcwd(), "outputs", "small_signal_model")
+    ssm.to_csv(path)
     
     return sys, ssm

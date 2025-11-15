@@ -162,7 +162,6 @@ def get_ccm_matrices(system):
         T = build_ccm_permutation(system)
         T = block_diag(T, np.eye(F.shape[0] - T.shape[0]))
 
-        # TODO: Add u and y grid/stack
         F = T @ F
         G = T @ G
 
