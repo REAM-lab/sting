@@ -30,7 +30,7 @@ Welcome! This repository contains the STING—**S**pecialized **T**ool for **IN*
 3. **Run STING**: To ensure that STING was installed correctly navigate to the examples folder. Then, within your python virtual environment, launch python3.14 and execute `run_ssm()`.
     ```
     (.venv)$ cd ./examples/testcase1/
-    (.venv)$ python3.14
+    (.venv)$ python3.12
     >>> from sting.main import run_ssm
     >>> run_ssm()
     ```

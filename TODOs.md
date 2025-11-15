@@ -2,13 +2,14 @@
 
 ## General
 - Update export to matlab in the system class? 
-- Should we replace `linalg.inv` with `linalg.solve`.
+- Should we replace `linalg.inv` with `linalg.solve`?
 - Dataclass for component connection matrices?
 - Variable/State descriptions
     - Can we put this in the globally scoped atrrs of each class?
+- Update gen models to new state-space model
 
 ## Adam Subtasks
-1. Testing 
+1. Testing
     - Add unit tests
         - StateSpaceModels
         - Variables
