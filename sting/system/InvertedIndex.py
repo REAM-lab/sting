@@ -12,7 +12,7 @@ class InvertedIndex:
     indices that map categories to entries. Each index can be based on entry 
     attributes and can also be ordered by entry attributes. 
     - Note: We assume every entry has a unique "id" attribute.
-    - Warning: Modifications to underlying entries will not be reflected in indices!  
+    - Warning: Modifications to underlying entries will not be reflected in indicies!  
         To ensure the correct behavior please delete the entry first, modify it, and
         then add it back to the inverted index. 
     
@@ -33,9 +33,9 @@ class InvertedIndex:
         - The index must be evaluated for all existing entries.
     """
     def __init__(self):
-        self.entries = {}
-        self.indices = {}
-        self.index_rules = {}
+        self.entries = {}      # entry_id → entry
+        self.indices = {}      # index_name → SortedList[entry]
+        self.index_rules = {}  # index_name → bool: rule(entry)
 
     def __getitem__(self, key):
         return self.entries[key]
@@ -75,8 +75,10 @@ class InvertedIndex:
 
         self.indices[name] = sorted_list
 
-    def sel(self, name):
+    def sel(self, name, attrs=None):
         """Return a list of entry objects for an index."""
+        if attrs:
+            return [[getattr(entry, attr) for entry in self.indices[name]] for attr in attrs]
         return list(self.indices[name])
 
     def __repr__(self):
@@ -132,3 +134,5 @@ sys.add_index(
 
 # Get science textbooks
 sys.sel("science")
+# Get the number of pages and titles of all long books
+pages, titles = sys.sel("long_books", attrs=["pages", "title"])
