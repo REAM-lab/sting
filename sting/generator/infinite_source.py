@@ -42,7 +42,7 @@ class Infinite_source:
     emt_init_cond: Optional[EMT_initial_conditions] = None
     ssm: Optional[StateSpaceModel] = None
     name: str = field(default_factory=str)
-    type: str = 'generator'
+    type: str = 'inf_src'
 
     def _load_power_flow_solution(self, power_flow_instance):
         sol = power_flow_instance.generators.loc[self.idx]

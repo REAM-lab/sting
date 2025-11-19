@@ -34,7 +34,7 @@ class Parallel_rc_shunt:
     emt_init_cond: Optional[EMT_initial_conditions] = None
     ssm: Optional[StateSpaceModel] = None
     name: str = field(default_factory=str)
-    type: str = 'shunt'
+    type: str = 'pa_rc'
 
     @property
     def g(self):
@@ -99,26 +99,25 @@ class Parallel_rc_shunt:
 def combine_shunts(system):
 
     print("> Reduce shunts to have one shunt per bus:")
-   
-    shs = system.components.pa_rc
+    
+    shunt_df = (
+        system
+        .view("shunts", attrs=["bus_idx", "g", "b"], dataframe=True)
+        .reset_index(drop=True)
+        .pivot_table(index='bus_idx', values=['g', 'b'], aggfunc='sum')
+    )
 
-    bus_idx = [s.bus_idx for s in shs]
-    g = [s.g for s in shs]
-    b = [s.b for s in shs]
-
-    shunt_df = pd.DataFrame({'bus_idx': bus_idx, 'g': g, 'b': b})    
-    shunt_df = shunt_df.pivot_table(index='bus_idx', values=['g', 'b'], aggfunc ='sum')
     shunt_df['r'] = 1/shunt_df['g']
     shunt_df['c'] = 1/shunt_df['b']
-    shunt_df['idx'] = ['shred' + str(i) for i in range(len(shunt_df))] 
-    shunt_df.reset_index(inplace=True)
+    shunt_df['idx'] = range(len(shunt_df))
+    shunt_df.drop(columns=["b", "g"], inplace=True)
 
-    # Create new list of components "parallel rc shunts"
-    system.componets.pa_rc = [] 
+    # Clear all existing parallel RC shunts
+    system.clear("pa_rc") 
 
     # Add each effective/combined parallel RC shunt to the pa_rc components
     for _, row in shunt_df.iterrows(): 
         shunt = Parallel_rc_shunt(**row.to_dict())
-        system.components.pa_rc.append(shunt) 
+        system.add(shunt)
  
     print("\t- New list of parallel RC components created ... ok\n")

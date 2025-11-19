@@ -36,7 +36,7 @@ class Series_rl_branch:
     r: float
     l: float
     name: str = field(default_factory=str)
-    type: str = 'branch'
+    type: str = 'se_rl'
     pf: Optional[Power_flow_variables] = None
     emt_init_cond: Optional[EMT_initial_conditions] = None
     ssm: Optional[StateSpaceModel] = None

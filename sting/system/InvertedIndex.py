@@ -4,37 +4,39 @@
 from sortedcontainers import SortedList
 from dataclasses import dataclass
 
+
 class InvertedIndex:
     """
     Data structure for storing uniquely-identified entries with multiple indices.
-    
-    This structure behaves like a dictionary while also supporting user-defined 
-    indices that map categories to entries. Each index can be based on entry 
-    attributes and can also be ordered by entry attributes. 
+
+    This structure behaves like a dictionary while also supporting user-defined
+    indices that map categories to entries. Each index can be based on entry
+    attributes and can also be ordered by entry attributes.
     - Note: We assume every entry has a unique "id" attribute.
-    - Warning: Modifications to underlying entries will not be reflected in indicies!  
+    - Warning: Modifications to underlying entries will not be reflected in indices!
         To ensure the correct behavior please delete the entry first, modify it, and
-        then add it back to the inverted index. 
-    
+        then add it back to the inverted index.
+
     Runtime Analysis
     ----------------
     - N: the total number of entries.
     - M_i: the number of entries currently belonging to index i.
     - k: the total indices, where typically k << M_i and k << N.
-        
+
     Operations:
     - Entry and index access: O(1)
         - Mirrors standard dict performance.
     - Adding or deleting an entry: O(k * log(M_i))
         - Each entry may belong to any of the k indices.
-        - Each index maintains sorted order, accessing costs 
+        - Each index maintains sorted order, accessing costs
           log(M_i) per index, using binary search.
     - Adding a new index: O(N)
         - The index must be evaluated for all existing entries.
     """
+
     def __init__(self):
-        self.entries = {}      # entry_id → entry
-        self.indices = {}      # index_name → SortedList[entry]
+        self.entries = {}  # entry_id → entry
+        self.indices = {}  # index_name → SortedList[entry]
         self.index_rules = {}  # index_name → bool: rule(entry)
 
     def __getitem__(self, key):
@@ -49,7 +51,7 @@ class InvertedIndex:
         # remove from indices
         for name in self.indices.keys():
             self.indices[name].discard(entry)
-        
+
         del self.entries[key]
 
     def __iter__(self):
@@ -78,13 +80,14 @@ class InvertedIndex:
     def sel(self, name, attrs=None):
         """Return a list of entry objects for an index."""
         if attrs:
-            return [[getattr(entry, attr) for entry in self.indices[name]] for attr in attrs]
+            return [
+                [getattr(entry, attr) for entry in self.indices[name]] for attr in attrs
+            ]
         return list(self.indices[name])
 
     def __repr__(self):
         return f"System({self.entries!r})"
 
-    
 
 ## Example use ##
 @dataclass
@@ -93,6 +96,7 @@ class Book:
     title: str
     pages: int
     tags: list[str]
+
 
 bio1 = Book(2, "Biology 101", 350, ["science", "biology", "intro-bio"])
 bio2 = Book(1, "Biology 101", 500, ["science", "biology"])
@@ -109,28 +113,14 @@ sys.add(poet)
 
 # Index on science textbooks (sorted on title and then books id)
 sys.add_index(
-    "science", 
-    rule=lambda b: "science" in b.tags, 
-    key=lambda b: (b.title, b.id)
+    "science", rule=lambda b: "science" in b.tags, key=lambda b: (b.title, b.id)
 )
 # Index on bio textbooks (sorted from least to most pages)
-sys.add_index(
-    "biology",
-    rule=lambda b: "biology" in b.tags, 
-    key=lambda b: b.pages
-)
+sys.add_index("biology", rule=lambda b: "biology" in b.tags, key=lambda b: b.pages)
 # Index on books over 100 pages (sorted by number of tags)
-sys.add_index(
-    "long_books",
-    rule=lambda b: b.pages > 100, 
-    key=lambda b: len(b.tags)
-)
+sys.add_index("long_books", rule=lambda b: b.pages > 100, key=lambda b: len(b.tags))
 # Return all books sorted on their index
-sys.add_index(
-    "all",
-    rule=lambda b: True,
-    key=lambda b: (b.id)
-)
+sys.add_index("all", rule=lambda b: True, key=lambda b: (b.id))
 
 # Get science textbooks
 sys.sel("science")

@@ -3,82 +3,60 @@ import pandas as pd
 import importlib
 import os
 from typing import get_type_hints
-from dataclasses import make_dataclass, field
+#from dataclasses import make_dataclass, field
 #import matlab.engine
 
 import sting
 from sting import data_files
 from sting.line.pi_model import decompose_lines 
-from sting.shunt.paralle_rc import combine_shunts
+from sting.shunt.parallel_rc import combine_shunts
 from sting.utils.graph_matrices import get_ccm_matrices
 from sting.models.StateSpaceModel import StateSpaceModel
 
+from sting.utils.indices import ListMap
 
-class System: 
 
-    def __init__(self, active_components=None):
+class System(ListMap): 
+
+    def __init__(self, components=None):
+        
         print(sting.__logo__)
-
         print("> System initialization", end=" ")
 
-        # Read csv mapping each componet to an input file and python class
-        data_dir = os.path.dirname(data_files.__file__)
-        meta_data = pd.read_csv(os.path.join(data_dir, "components_metadata.csv"))
+        # If no components are given, use all in the meta data files
+        if not components:
+            data_dir = os.path.dirname(data_files.__file__)
+            filepath = os.path.join(data_dir, "components_metadata.csv")
+            components = pd.read_csv(filepath , usecols=["component"]).squeeze()
         
-        # Filter meta_data by all components in the active components list
-        if active_components:
-            meta_data = meta_data[meta_data['components'].isin(active_components)]
-            
-        # Create a dataclass for all components, initialized to an empty list
-        c_names = [
-            (c_name, list, field(default_factory=list))
-            for c_name in meta_data['component']]
+        # Components are stored under their type and index ("inf_src", 1)
+        super().__init__(groups=components, look_up=lambda c: (c.type, c.idx))
         
-        # Create methods for dataclass to return all components of a given type
-        def get(s, group, flat):
-            """Return a list of all components of a given type"""
-            attr_list = [getattr(s, g) for g in group]
-            if flat: # Return a single list (rather than a list of lists)
-                return sum(attr_list, [])
-            return attr_list
-        
-        # Method to return all components
-        c_all = meta_data['component'].to_list()
-        namespace = {
-            "all": lambda s, flat=True, group=c_all.copy(): get(s, c_all, flat),
-            "__repr__": lambda s: str([(c, len(getattr(s, c))) for c in c_all])
-        }
-
-        # Methods to return all components of a given type (e.g. shunts, branches, generators)
-        for c_type in meta_data['type'].unique():
-            # Get a list of all components of a given type
-            mask = (meta_data['type'] == c_type)
-            group = meta_data.loc[mask, 'component'].to_list()
-
-            namespace[c_type] = (
-                lambda s, flat=True, group=group.copy(): get(s, group, flat))
-            
-        Components = make_dataclass(
-            "Components", c_names, slots=True, namespace=namespace)
-        
-        self.meta_data = meta_data
-        self.components = Components()
-        self.connections = None
+        # TODO: Create these views programmatically
+        self.add_view("generators", ["inf_src"])
+        self.add_view("shunts", ["pa_rc"])
+        self.add_view("branches", ["se_rl"])
+        self.add_view("buses", ["bus"])
         print("... ok.")
             
 
     @classmethod
-    def from_csv(cls, inputs_directory=None, active_components=None):
-        #TODO: Auto detect active components from input files
+    def from_csv(cls, inputs_dir=None, components=None):
         
-        if not inputs_directory:
+        # If no input directory is given, try using the working directory        
+        if not inputs_dir:
             inputs_directory = os.path.join(os.getcwd(), 'inputs')
 
-        self = cls()
+        self = cls(components=components)
+        
+        # Read components meta data to construct components
+        data_dir = os.path.dirname(data_files.__file__)
+        filepath = os.path.join(data_dir, "components_metadata.csv")
+        meta_data = pd.read_csv(filepath).itertuples(name=None)
         
         print("> Load components via CSV files from:")
 
-        for(_, c_name, c_type, c_class, c_module, filename)  in self.meta_data.itertuples(name=None):
+        for(_, c_name, c_type, c_class, c_module, filename) in meta_data:
             
             filepath = os.path.join(inputs_directory, filename)
             # If no such file exits, continue
@@ -93,35 +71,28 @@ class System:
                 key: value for key, value in parameters_dtypes.items() 
                 if value.__module__ == 'builtins'}
 
+            # Read components csv
             print(f"\t- '{filepath}'", end=' ')
             df = pd.read_csv(filepath, dtype=parameters_dtypes)
-            n_components = len(df)
-
-            # Check if there is at least one row aside from headers
-            if n_components == 0: 
-                print("... is empty.")  
-                continue
-                
-            # Build index if one does not exits
-            if 'idx' not in df.columns:
-                df['idx'] = [c_name + str(i) for i in range(1, n_components+1)]
+            df['idx'] = list(range(1, len(df)+1))
 
             # Create a component for each row (i.e., component) in the csv
             for row in df.itertuples(index=False): 
                 component = component_class(**row._asdict())
-                getattr(self.components, c_name).append(component)
+                # Add the component to the system
+                self.add(component)
                 
             print("... ok.")
 
         return self
         
         
-    def prep_powerflow(self):
+    def clean_up(self):
         """
-        Apply any component clean up needed prior to running power flow.
+        Apply any component clean up needed prior to methods like power flow.
         """
         decompose_lines(self)
-        # self.combine_shunts()
+        # combine_shunts(self)
         
         
     def construct_ssm(self, pf_instance):
@@ -136,15 +107,6 @@ class System:
         # Construct the component connection matrices for the system model
         self.connections = get_ccm_matrices(self)
         
-        
-        
-    def apply(self, method, *args):
-        """
-        Apply a method to all components in the system.
-        """
-        for c in self.components.all():
-            if hasattr(c, method):
-                getattr(c, method)(*args) 
             
         
     def create_zone(self, c_names):

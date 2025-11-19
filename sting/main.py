@@ -10,7 +10,7 @@ def run_ssm():
     sys = System.from_csv()
     
     # Run AC-OPF
-    sys.prep_powerflow()
+    sys.clean_up()
     pf = PowerFlow(system=sys)
     pf_instance = pf.run_acopf()
 

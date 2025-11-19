@@ -13,7 +13,7 @@ class Line_no_series_compensation:
     g: float
     b: float
     name: str = field(default_factory=str)
-    type: str = 'line'
+    type: str = 'line_ns'
 
 
 def decompose_lines(system):
@@ -24,44 +24,32 @@ def decompose_lines(system):
     print("> Add branches and shunts from dissecting lines:")
     print("\t- Lines with no series compensation", end=' ')
     
-    for line in system.components.line_ns:
+    # Get the next open index for parallel RC shunts
+    shunt_idx = system.next_open("pa_rc")
+    
+    for line in system["line_ns"]:
         
-        system.components.se_rl.append(
-            Series_rl_branch(
-                idx = 'from_' + line.idx, 
-                type = 'branch', 
-                from_bus = line.from_bus, 
-                to_bus = line.to_bus,
-                sbase = line.sbase,
-                vbase = line.vbase,
-                fbase = line.fbase,
-                r = line.r,
-                l = line.l ))
-            
-        system.components.pa_rc.append(
-            Parallel_rc_shunt( 
-                idx = line.idx + '_frombus',
-                type = 'shunt', 
-                bus_idx = line.from_bus,
-                sbase = line.sbase,
-                vbase = line.vbase,
-                fbase = line.fbase,
-                r = 1/line.g,
-                c = 1/line.b))
+        branch = Series_rl_branch(idx = line.idx, from_bus = line.from_bus, 
+            to_bus = line.to_bus, sbase = line.sbase, vbase = line.vbase, 
+            fbase = line.fbase, r = line.r, l = line.l)
         
-        system.components.pa_rc.append(
-            Parallel_rc_shunt(
-                idx = line.idx + '_tobus',
-                type = 'shunt', 
-                bus_idx = line.to_bus,
-                sbase = line.sbase,
-                vbase = line.vbase,
-                fbase = line.fbase,
-                r = 1/line.g,
-                c = 1/line.b))
+        from_shunt = Parallel_rc_shunt(idx = shunt_idx, bus_idx = line.from_bus,
+            sbase = line.sbase, vbase = line.vbase, fbase = line.fbase,
+            r = 1/line.g, c = 1/line.b)
         
-    # Delete all lines, so they accidently get added to the system twice
-    system.components.line_ns = []
+        to_shunt = Parallel_rc_shunt(idx = shunt_idx+1, bus_idx = line.to_bus,
+            sbase = line.sbase, vbase = line.vbase, fbase = line.fbase,
+            r = 1/line.g, c = 1/line.b)
+        
+        # Add shunts and branch to system
+        system.add(branch)
+        system.add(from_shunt)
+        system.add(to_shunt)
+        # Increment the shunt index
+        shunt_idx += 2
+        
+    # Delete all lines so they cannot be added to the system again
+    system.clear("line_ns")
         
     print("... ok.\n")
     # TODO: Do the same for line with series compensation
