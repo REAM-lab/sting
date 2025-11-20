@@ -78,15 +78,15 @@ class Parallel_rc_shunt:
 
         u = DynamicalVariables(
             name=["i_bus_D", "i_bus_Q"],
-            component=[f"{self.type}_{self.idx}"]*2,
-            type=["grid"]*2,
+            component=f"{self.type}_{self.idx}",
+            type="grid",
             init=[self.emt_init_cond.i_bus_D, self.emt_init_cond.i_bus_Q]
         )
         
         x = DynamicalVariables(
             name=["v_bus_D", "v_bus_Q"],
-            component=[f"{self.type}_{self.idx}"]*2,
-            type=["grid"]*2,
+            component=f"{self.type}_{self.idx}",
+            type="grid",
             init=[self.emt_init_cond.v_bus_D, self.emt_init_cond.v_bus_Q]
         )
         y = copy.deepcopy(x)

@@ -30,11 +30,22 @@ class DynamicalVariables:
         
         # Infer number of variables
         n = len(self.name)
-
-        # Convert provided fields or initialize defaults
-        self.component = np.asarray(self.component) if self.component is not None else np.full(n, '', dtype=str)
-        self.type   = np.asarray(self.type)     if self.type is not None    else np.full(n, 'grid', dtype=str)
-        self.init     = np.asarray(self.init)       if self.init is not None      else np.full(n, np.nan, dtype=float)
+        
+        def helper(arg, default):
+            # Type check the input and return an initialized array
+            if type(arg) == np.ndarray:
+                return arg
+            
+            if type(arg) == str or not arg:
+                fill = arg if arg else default
+                return np.full(n, fill)
+            
+            if type(arg) == list: 
+                return np.asarray(arg)
+            
+        self.component = helper(self.component, "")
+        self.type = helper(self.type, "")
+        self.init = helper(self.init, np.nan)
 
         # Enforce consistent lengths
         lengths = {len(self.name), len(self.component), len(self.type), len(self.init)}
