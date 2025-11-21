@@ -25,9 +25,12 @@ Welcome! This repository contains the STING—**S**pecialized **T**ool for **IN*
     ```
     (.venv)$ gamspy show license
     ```
-    to verify the installation of the license.
-
-3. **Run STING**: To ensure that STING was installed correctly navigate to the examples folder. Then, within your python virtual environment, launch python3.14 and execute `run_ssm()`.
+    to verify the installation of the license. You may need to install some solvers to run power flow or other optimization models in STING. For example, to install ipopt in GAMSPy, you can execute this command in your terminal having your python environment activated.
+    ```
+    (.venv)$ gamspy install solver ipopt
+     ```
+    
+4. **Run STING**: To ensure that STING was installed correctly navigate to the examples folder. Then, within your python virtual environment, launch python3.14 and execute `run_ssm()`.
     ```
     (.venv)$ cd ./examples/testcase1/
     (.venv)$ python3.12
