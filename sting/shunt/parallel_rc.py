@@ -34,7 +34,7 @@ class ShuntParallelRC:
     ssm: Optional[StateSpaceModel] = None
     name: str = field(default_factory=str)
     type: str = "pa_rc"
-    tags: Optional[list] = field(default_factory=lambda : ["shunts"])
+    tags: Optional[list] = field(default_factory=lambda: ["shunts"])
 
     @property
     def g(self):

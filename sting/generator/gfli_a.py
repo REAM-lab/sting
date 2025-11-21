@@ -1,9 +1,11 @@
 # Import standard python packages
+import pandas as pd
 import numpy as np
+from scipy.linalg import block_diag
+from dataclasses import dataclass, field
 from typing import NamedTuple, Optional
-from dataclasses import dataclass
 
-# Import sting packages
+# Import src packages
 from sting.utils import linear_systems_tools
 from sting.utils.linear_systems_tools import State_space_model
 
@@ -20,11 +22,9 @@ class EMT_initial_conditions(NamedTuple):
     vphase_bus: float
     p_bus: float
     q_bus: float
-    p_ref: float
-    q_ref: float
-    v_ref: float
-    angle_ref: float
-    v_vsc_d: float
+    ref_angle: float
+    pi_cc_d: float
+    pi_cc_q: float
     i_vsc_d: float
     i_vsc_q: float
     i_bus_d: float
@@ -38,7 +38,7 @@ class EMT_initial_conditions(NamedTuple):
 
 
 @dataclass(slots=True)
-class GFMI_c:
+class GFLI_a:
     idx: str
     bus_idx: str
     p_min: float
@@ -47,26 +47,29 @@ class GFMI_c:
     q_max: float
     sbase: float
     vbase: float
+    vbase: float
     fbase: float
+    vdc: float
     rf1: float
     lf1: float
-    rsh: float
     csh: float
+    rsh: float
     txr_sbase: float
     txr_r1: float
     txr_l1: float
     txr_r2: float
     txr_l2: float
-    h: float
-    kd: float
-    droop_q: float
-    tau_pc: float
-    kp_vc: float
-    ki_vc: float
-    name: Optional[str] = None
+    beta: float
+    kp_pll: float
+    ki_pll: float
+    kp_cc: float
+    ki_cc: float
+    name: str = field(default_factory=str)
+    type: str = "gfli_a"
     pf: Optional[Power_flow_variables] = None
     emt_init_cond: Optional[EMT_initial_conditions] = None
     ssm: Optional[State_space_model] = None
+    tags: Optional[list] = field(default_factory=lambda: ["generators"])
 
     @property
     def rf2(self):
@@ -97,18 +100,13 @@ class GFMI_c:
 
         # Voltage in the end of the LCL filter
         v_bus_DQ = vmag_bus * np.exp(vphase_bus * np.pi / 180 * 1j)
+        ref_angle = np.angle(v_bus_DQ, deg=True)
 
         # Current sent from the end of the LCL filter
         i_bus_DQ = (p_bus - q_bus * 1j) / np.conjugate(v_bus_DQ)
 
         # Voltage across the shunt element in the LCL filter
         v_lcl_sh_DQ = v_bus_DQ + (self.rf2 + self.lf2 * 1j) * i_bus_DQ
-
-        # Voltage and power references
-        v_ref = abs(v_lcl_sh_DQ)
-        s_ref = v_lcl_sh_DQ * np.conjugate(i_bus_DQ)
-        p_ref = s_ref.real
-        q_ref = s_ref.imag
 
         # Current flowing through shunt element of LCL filter
         i_lcl_sh_DQ = v_lcl_sh_DQ * (self.csh * 1j) + v_lcl_sh_DQ / self.rsh
@@ -117,29 +115,29 @@ class GFMI_c:
         i_vsc_DQ = i_bus_DQ + i_lcl_sh_DQ
         v_vsc_DQ = v_lcl_sh_DQ + (self.rf1 + self.lf1 * 1j) * i_vsc_DQ
 
-        # Angle reference
-        angle_ref = np.angle(v_vsc_DQ, deg=True)
-
         # We refer the voltage and currents to the synchronous frames of the
         # inverter
-        v_vsc_dq = v_vsc_DQ * np.exp(-angle_ref * np.pi / 180 * 1j)
-        i_vsc_dq = i_vsc_DQ * np.exp(-angle_ref * np.pi / 180 * 1j)
+        v_vsc_dq = v_vsc_DQ * np.exp(-ref_angle * np.pi / 180 * 1j)
+        i_vsc_dq = i_vsc_DQ * np.exp(-ref_angle * np.pi / 180 * 1j)
 
-        v_bus_dq = v_bus_DQ * np.exp(-angle_ref * np.pi / 180 * 1j)
-        i_bus_dq = i_bus_DQ * np.exp(-angle_ref * np.pi / 180 * 1j)
+        v_bus_dq = v_bus_DQ * np.exp(-ref_angle * np.pi / 180 * 1j)
+        i_bus_dq = i_bus_DQ * np.exp(-ref_angle * np.pi / 180 * 1j)
 
-        v_lcl_sh_dq = v_lcl_sh_DQ * np.exp(-angle_ref * np.pi / 180 * 1j)
+        v_lcl_sh_dq = v_lcl_sh_DQ * np.exp(-ref_angle * np.pi / 180 * 1j)
+
+        # Initial conditions for the integral controller
+        pi_cc_dq = (
+            v_vsc_dq - self.beta * v_bus_dq - 1j * (self.lf1 + self.lf2) * i_bus_dq
+        )
 
         self.emt_init_cond = EMT_initial_conditions(
             vmag_bus=vmag_bus,
             vphase_bus=vphase_bus,
             p_bus=p_bus,
             q_bus=q_bus,
-            p_ref=p_ref,
-            q_ref=q_ref,
-            v_ref=v_ref,
-            angle_ref=angle_ref,
-            v_vsc_d=v_vsc_dq.real,
+            ref_angle=ref_angle,
+            pi_cc_d=pi_cc_dq.real,
+            pi_cc_q=pi_cc_dq.imag,
             i_vsc_d=i_vsc_dq.real,
             i_vsc_q=i_vsc_dq.imag,
             i_bus_d=i_bus_dq.real,
@@ -153,54 +151,23 @@ class GFMI_c:
         )
 
     def _build_small_signal_model(self):
+
+        # Current PI controller
+        kp_cc, ki_cc = self.kp_cc, self.ki_cc
+        pi_cc_d, pi_cc_q = self.emt_init_cond.pi_cc_d, self.emt_init_cond.pi_cc_q
+
+        pi_controller = State_space_model(
+            A=np.zeros((2, 2)),
+            B=np.hstack((np.eye(2), -np.eye(2))),
+            C=ki_cc * np.eye(2),
+            D=kp_cc * np.hstack((np.eye(2), -np.eye(2))),
+            inputs=["i_bus_d_ref", "i_bus_q_ref"],
+            states=["pi_cc_d", "pi_cc_q"],
+            outputs=["e_d", "e_q"],
+            initial_states=np.array([[pi_cc_d], [pi_cc_q]]),
+        )
+
         # fmt: off
-        # Active controller  (virtual inertia) and reactive controller (droop)
-        tau_pc = self.tau_pc
-        wb = self.wbase
-        h = self.h
-        kd = self.kd
-        droop_q = self.droop_q
-        i_bus_d, i_bus_q = self.emt_init_cond.i_bus_d, self.emt_init_cond.i_bus_q
-        v_lcl_sh_d, v_lcl_sh_q = self.emt_init_cond.v_lcl_sh_d, self.emt_init_cond.v_lcl_sh_q
-        p_ref, q_ref = self.emt_init_cond.p_ref, self.emt_init_cond.q_ref
-        
-        pc_controller = State_space_model( 
-                        A = np.array([[0, wb,           0,          0],
-                                      [0, -kd/(2*h),    -1/(2*h),   0],
-                                      [0, 0,            -1/tau_pc,  0],
-                                      [0, 0,            0,          -1/tau_pc]]),
-                        B = np.vstack((                 [0, 0, 0, 0, 0,       0, 0],
-                                                        [0, 0, 0, 0, 1/(2*h), 0, 0],
-                                      1/tau_pc*np.array([i_bus_d, i_bus_q, v_lcl_sh_d, v_lcl_sh_q,   0, 0, 0]),
-                                      1/tau_pc*np.array([-i_bus_q, i_bus_d, v_lcl_sh_q, -v_lcl_sh_d, 0, 0, 0]))),
-                        C = np.array([[1, 0, 0, 0],
-                                     [0, 1, 0, 0],
-                                     [0, 0, 0, -droop_q]]),
-                        D = np.vstack(( np.zeros((2,7)),
-                                       np.hstack((np.zeros((5, )), [droop_q, 1])))),
-                        inputs =['v_lcl_sh_d', 'v_lcl_sh_q', 'i_bus_d', 'i_bus_q', 'p_ref', 'q_ref', 'v_ref'],
-                        states = ['pi_pc', 'w_pc', 'p_pc', 'q_pc'],
-                        outputs = ['phi_pc', 'w_pc', 'v_lcl_sh_ref'],
-                        initial_states = np.array([[0], [0], [p_ref], [q_ref]])
-                        )
-
-
-        # Voltage magnitude controller
-        kp_vc, ki_vc = self.kp_vc, self.ki_vc
-        v_vsc_d = self.emt_init_cond.v_vsc_d
-        
-        voltage_pi_controller = State_space_model(  A = 0,
-                                                    B = ki_vc*np.array([[1, -1]]),
-                                                    C = np.array([[1], [0]]),
-                                                    D = kp_vc*np.array([[1, -1],
-                                                                        [0, 0 ]]),
-                                                    inputs = ['v_sh_mag_ref', 'v_sh_mag'],
-                                                    states= ['pi_vc'],
-                                                    outputs = ['v_vsc_d', 'v_vsc_q'],
-                                                    initial_states= np.array([[v_vsc_d]]))
-                                                    
-
-
         # LCL filter
         rf1, lf1, rf2, lf2, rsh, csh = self.rf1, self.lf1, self.rf2, self.lf2, self.rsh, self.csh
         wb = self.wbase
@@ -221,54 +188,73 @@ class GFMI_c:
                                          [0     ,      0    ,       0    ,       -1/lf2    ,     -i_bus_d],
                                          [0     ,      0    ,       0     ,      0      ,          v_lcl_sh_q],
                                          [0     ,      0    ,       0     ,      0      ,        -v_lcl_sh_d]]),
-                        C = np.eye(6),
-                        D = np.zeros((6,5)),
+                    C = np.array([[0     ,      0     ,      1     ,      0     ,      0   ,    0],
+                                       [0     ,      0     ,      0     ,      1     ,      0   ,    0]]),
+                    D = np.zeros((2,5)),
                     states=["i_vsc_d", "i_vsc_q", "i_bus_d", "i_bus_q", "v_lcl_sh_d", "v_lcl_sh_q"],
                     inputs=['v_vsc_d', 'v_vsc_q', 'v_bus_d', 'v_bus_q', 'w'],
-                    outputs=["i_vsc_d", "i_vsc_q", "i_bus_d", "i_bus_q", "v_lcl_sh_d", "v_lcl_sh_q"],
+                    outputs=["i_vsc_d", "i_vsc_q", "i_bus_d", "i_bus_q"],
                     initial_states=  np.array([[i_vsc_d], [i_vsc_q], [i_bus_d], [i_bus_q], [v_lcl_sh_d], [v_lcl_sh_q]]))
 
+        # Phase-locked loop
+        kp_pll, ki_pll = self.kp_pll, self.ki_pll
+        beta = self.beta
+        vmag_bus = self.emt_init_cond.vmag_bus
+        sinphi = np.sin(self.emt_init_cond.ref_angle*np.pi/180)
+        cosphi = np.cos(self.emt_init_cond.ref_angle*np.pi/180)
+        int_pll = 0
+        phase_pll =  self.emt_init_cond.ref_angle*np.pi/180
+
+        pll = State_space_model(
+                                A = np.array([  [  0         ,  -vmag_bus],
+                                                [wb*ki_pll ,  -wb*vmag_bus*kp_pll]]),
+                                B = np.array([[  -sinphi      ,        +cosphi],
+                                              [-wb*kp_pll*sinphi,  wb*kp_pll*cosphi]]),
+                                C = np.array([  [  0  , 1],
+                                                [1*ki_pll , -1*vmag_bus*kp_pll]]),
+                                D = np.array([  [0          ,           0],
+                                                [-1*kp_pll*sinphi ,  1*kp_pll*cosphi]]),
+                                inputs = ['v_bus_D', 'v_bus_Q'],
+                                outputs= ['phase', 'w'],
+                                states=["int_pll", "phase_pll"],
+                                initial_states=np.array([[int_pll], [phase_pll]])) 
+
         # Interconnection matrices
-        v_ref = self.emt_init_cond.v_ref
-        angle_ref = self.emt_init_cond.angle_ref
-        v_bus_D, v_bus_Q = self.emt_init_cond.v_bus_D, self.emt_init_cond.v_bus_Q
-        sinphi = np.sin(angle_ref*np.pi/180)
-        cosphi = np.cos(angle_ref*np.pi/180)
-        a = v_lcl_sh_d/v_ref
-        b = v_lcl_sh_q/v_ref
-        c = -sinphi*v_bus_D+cosphi*v_bus_Q
-        d = -cosphi*v_bus_D-sinphi*v_bus_Q
-        e = -sinphi*i_bus_d- cosphi*i_bus_q
-        f = cosphi*i_bus_d - sinphi*i_bus_q
-        
-        Fccm = np.vstack((  np.hstack((np.zeros((2,9)), np.eye(2))), # v_lcl_sh_dq
-                            np.hstack((np.zeros((2,7)), np.eye(2), np.zeros((2,2)))), # i_bus_dq
-                            np.zeros((3,11)), # p_ref, q_ref, v_ref
-                            np.hstack( ( [0, 0, 1], np.zeros((8, )) )), # v_lcl_sh_ref
-                            np.hstack( ( np.zeros((9, )),  [a, b])), # v_lcl_sh_mag
-                            np.hstack( ( np.zeros((2,3)), np.eye(2), np.zeros((2,6))) ), # v_vsc_dq
-                            np.hstack( ( [c], np.zeros((10, )) )), # v_bus_d
-                            np.hstack( ( [d], np.zeros((10, )) )), # v_bus_q
-                            np.hstack( ( [0, 1], np.zeros((9, )))) # w
-                            ))
-        Gccm = np.vstack(( np.zeros((4,5)) ,
-                           np.hstack( (np.eye(3), np.zeros((3,2)))),
-                           np.zeros((4,5)),
-                           np.hstack( (np.zeros((3,)), [cosphi, sinphi])),
-                           np.hstack( (np.zeros((3,)), [-sinphi, cosphi])),
-                           np.zeros((5, ))))
-        Hccm = np.vstack(( np.hstack(( [e], np.zeros((6,)), [cosphi, -sinphi], [0, 0] )), 
-                           np.hstack(( [f], np.zeros((6,)), [sinphi, cosphi], [0, 0] )) ))
-        Lccm = np.zeros((2,5))
-        
-        ssm = linear_systems_tools.connect_models_via_CCM(Fccm, Gccm, Hccm, Lccm, 
-                                                          [pc_controller, voltage_pi_controller, lcl_filter])
+        Fccm = np.vstack( (     np.zeros((1,6)) ,# i2ref_d
+                                np.zeros((1,6)) , # i2ref_q 
+                                np.hstack((np.zeros((2,2)), np.eye(2) ,np.zeros((2,2)))), # i2c_dq
+                                [1, 0,  0  ,       -(lf1+lf2),  0     ,     0], # v1c_d
+                                [0 , 1 , (lf1+lf2), 0    ,      -beta*vmag_bus , 0], # v1c_q
+                                np.zeros((1,6)) , # v2c_d
+                                np.append( np.zeros((1,4)) , [-vmag_bus,  0] ), # v2c_q
+                                np.append( np.zeros((1,5)) , [1] ), # w
+                                np.zeros((2,6)) )) # v2c_dq
+
+        Gccm = np.vstack((      [ 1, 0,  0, 0], # i2ref_d
+                                [0,  1, 0, 0], # i2ref_q
+                                np.zeros((2,4)), # i2c_dq
+                                [0, 0, beta*cosphi ,   beta*sinphi],  # v1c_d
+                                [0, 0, -beta*sinphi,    beta*cosphi], # v1c_q
+                                [0, 0, cosphi ,sinphi], # v2c_d
+                                [0, 0,  -sinphi ,cosphi], # v2c_q
+                                np.zeros((1,4)), # w
+                                np.hstack( (np.zeros((2,2)), np.eye(2) ) ) ) ) # v2_dq ;  
+  
+        Hccm = np.vstack(( [ 0, 0 ,cosphi , -sinphi, -sinphi*i_bus_d-cosphi*i_bus_q, 0],
+                            [0, 0, sinphi , cosphi  , cosphi*i_bus_d-sinphi*i_bus_q, 0] ))
         # fmt: on
+        Lccm = np.zeros((2, 4))
+
+        # Generate small-signal model
+        ssm = linear_systems_tools.connect_models_via_CCM(
+            Fccm, Gccm, Hccm, Lccm, [pi_controller, lcl_filter, pll]
+        )
+
         # Note that states and initial states do not need to be defined as they result from stacking states in ccm tool.
 
         # Inputs and outputs
-        device_side_inputs = ["p_ref", "q_ref", "v_ref"]
-        initial_device_side_inputs = np.array([[p_ref], [q_ref], [v_ref]])
+        device_side_inputs = ["i_bus_d_ref", "i_bus_q_ref"]
+        initial_device_side_inputs = np.array([[i_bus_d], [i_bus_q]])
 
         grid_side_inputs = ["v_bus_D", "v_bus_Q"]
         v_bus_D, v_bus_Q = self.emt_init_cond.v_bus_D, self.emt_init_cond.v_bus_Q

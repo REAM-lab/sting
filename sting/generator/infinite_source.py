@@ -5,7 +5,7 @@ from typing import NamedTuple, Optional
 from sting.utils.dynamical_systems import StateSpaceModel, DynamicalVariables
 
 
-class PowerFlowVarsiables(NamedTuple):
+class PowerFlowVariables(NamedTuple):
     p_bus: float
     q_bus: float
     vmag_bus: float
@@ -37,16 +37,16 @@ class InfiniteSource:
     fbase: float
     r: float
     l: float
-    pf: Optional[PowerFlowVarsiables] = None
+    pf: Optional[PowerFlowVariables] = None
     emt_init: Optional[InitialConditionsEMT] = None
     ssm: Optional[StateSpaceModel] = None
     name: str = field(default_factory=str)
     type: str = "inf_src"
-    tags: Optional[list] = field(default_factory=lambda : ["generators"])
+    tags: Optional[list] = field(default_factory=lambda: ["generators"])
 
     def _load_power_flow_solution(self, power_flow_instance):
         sol = power_flow_instance.generators.loc[f"{self.type}_{self.idx}"]
-        self.pf = PowerFlowVarsiables(
+        self.pf = PowerFlowVariables(
             p_bus=sol.p.item(),
             q_bus=sol.q.item(),
             vmag_bus=sol.bus_vmag.item(),
@@ -80,12 +80,11 @@ class InfiniteSource:
             angle_ref=angle_ref,
         )
 
-
     def _build_small_signal_model(self):
 
         r = self.r
         l = self.l
-        
+
         wb = 2 * np.pi * self.fbase
         cosphi = np.cos(self.emt_init.angle_ref * np.pi / 180)
         sinphi = np.sin(self.emt_init.angle_ref * np.pi / 180)

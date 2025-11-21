@@ -1,5 +1,5 @@
 type,class,module,input_csv
-gfli_a,GFLIa,sting.generator.gfli_a,gfli_a.csv
+gfli_a,GFLI_a,sting.generator.gfli_a,gfli_a.csv
 inf_src,InfiniteSource,sting.generator.infinite_source,infinite_source.csv
 line_pi,LinePiModel,sting.line.pi_model,pi_model.csv
 se_rl,BranchSeriesRL,sting.branch.series_rl,series_rl.csv

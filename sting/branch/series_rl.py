@@ -41,7 +41,7 @@ class BranchSeriesRL:
     pf: Optional[PowerFlowVariables] = None
     emt_init: Optional[InitialConditionsEMT] = None
     ssm: Optional[StateSpaceModel] = None
-    tags: Optional[list] = field(default_factory=lambda : ["branches"])
+    tags: Optional[list] = field(default_factory=lambda: ["branches"])
 
     def _load_power_flow_solution(self, power_flow_instance):
         sol = power_flow_instance.branches.loc[f"{self.type}_{self.idx}"]

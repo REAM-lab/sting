@@ -128,45 +128,48 @@ class PowerFlow:
     def __post_init__(self):
         """
         Construct the following tables:
-   
-        * Generators * 
+
+        * Generators *
         gen_idx    | bus_idx  p_min  p_max  q_min  q_max
         ------------------------------------------------
         inf_src_1 |  1       -2.0   2.0    -5.0    5.0
-        
-        * Buses * 
+
+        * Buses *
         idx   | v_min  v_max  p_load  q_load
         ------------------------------------------------
         1    | 1.00   1.00  0.00    0.00
-        
-        * Branches * 
+
+        * Branches *
                  | from_bus  to_bus  r    l
         ------------------------------------------------
         se_rl_1 |        1   2      0.01  0.05
-        
-        * Shunts * 
+
+        * Shunts *
                  | bus_idx     g         b
         ------------------------------------------------
         pa_rc_1 |        1  0.05  0.066667
 
-        """        
+        """
         attrs = ["bus_idx", "p_min", "p_max", "q_min", "q_max"]
         self.generators = self.system.view("generators", attrs, dataframe=True)
         self.generators.index.name = "gen_idx"
         self.generators.bus_idx = self.generators.bus_idx.map(str)
-        
+
         attrs = ["idx", "v_min", "v_max", "p_load", "q_load"]
-        self.buses = self.system.view("buses", attrs, dataframe=True).reset_index(drop=True).set_index("idx")
+        self.buses = (
+            self.system.view("buses", attrs, dataframe=True)
+            .reset_index(drop=True)
+            .set_index("idx")
+        )
         self.buses.index.name = "bus_idx"
-        self.buses.index =  self.buses.index.map(str)
-        
+        self.buses.index = self.buses.index.map(str)
+
         # Note: we assume only one branch between two adjecent buses
         attrs = ["from_bus", "to_bus", "r", "l"]
         self.branches = self.system.view("branches", attrs, dataframe=True)
-        
+
         attrs = ["bus_idx", "g", "b"]
         self.shunts = self.system.view("shunts", attrs, dataframe=True)
-
 
     def run_acopf(self):
         """

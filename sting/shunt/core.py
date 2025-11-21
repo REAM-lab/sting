@@ -1,12 +1,12 @@
 from sting.shunt.parallel_rc import ShuntParallelRC
 
+
 def combine_shunts(system):
 
     print("> Reduce shunts to have one shunt per bus:")
 
     shunt_df = (
-        system
-        .view("shunts", attrs=["bus_idx", "g", "b"], dataframe=True)
+        system.view("shunts", attrs=["bus_idx", "g", "b"], dataframe=True)
         .reset_index(drop=True)
         .pivot_table(index="bus_idx", values=["g", "b"], aggfunc="sum")
     )

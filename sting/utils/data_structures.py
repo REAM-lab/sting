@@ -1,6 +1,7 @@
 from typing import Any, Dict, Iterable, List, Tuple, Iterator, Optional
 import pandas as pd
 
+
 class ListMap:
     """
     List-backed map with O(1) lookup, insert, and delete operations.
@@ -8,32 +9,31 @@ class ListMap:
     A ListMap stores values in fixed groups, where each group
     maintains a list indexed by an integer ID. Keys are (group, id)
     tuples. Accessing a group returns all group values in ID order.
-    You may also define views, a named collection of groups from 
-    which values will be yielded in collection order. 
+    You may also define views, a named collection of groups from
+    which values will be yielded in collection order.
 
     ==================
     Basic Use:
-    
-    >>> library = ListMap(["biology", "math", "poetry"]) 
-    >>> # Add some books 
-    >>> library[("math", 1)] = Book(id=513.2, title="Linear Algebra") 
-    >>> library[("math", 2)] = Book(id=602., title="Linear Controls") 
-    >>> library[("biology", 1)] = Book(id=582.1, title="Biology 101") 
-    >>> # Selections and views 
-    >>> list(library["math"]) # Returns a list of all math books 
+
+    >>> library = ListMap(["biology", "math", "poetry"])
+    >>> # Add some books
+    >>> library[("math", 1)] = Book(id=513.2, title="Linear Algebra")
+    >>> library[("math", 2)] = Book(id=602., title="Linear Controls")
+    >>> library[("biology", 1)] = Book(id=582.1, title="Biology 101")
+    >>> # Selections and views
+    >>> list(library["math"]) # Returns a list of all math books
     >>> library.add_view("science", ["math", "biology])
     >>> library.view("science") # Returns math books, then biology books
     >>> ids, titles = library.view("science", attrs=["id", "title"])
     """
 
-    def __init__(self, groups: Iterable[str], look_up):
+    def __init__(self, groups: Iterable[str]):
         groups = list(groups)
 
-        self._groups = groups                    
+        self._groups = groups
         self._data: Dict[str, List[Any]] = {g: [] for g in groups}
         self.views: Dict[str, List[str]] = {}
         self._len: Dict[str, int] = {g: 0 for g in groups}
-        self._hash = look_up
 
         # Warn about large unintended sparse jumps
         self.max_growth = 1024
@@ -105,10 +105,6 @@ class ListMap:
         except KeyError:
             return False
 
-    def add(self, value):
-        group, idx = self._hash(value)
-        self[group, idx] = value
-
     # ------------------------------------------------------------
     # Views
     # ------------------------------------------------------------
@@ -128,19 +124,17 @@ class ListMap:
             if dataframe:
                 index = [f"{g}_{idx}" for (g, idx) in self.keys(self.views[name])]
                 return pd.DataFrame(index=index, data=dict(zip(attrs, values)))
-                
+
             return values
-            
+
         return self.values(self.views[name], attr=attrs)
 
-    
     def length(self, group=None, view=None):
         """Return the length of a group or view."""
         if group:
             return self._len[group]
         if view:
             return sum([self._len[g] for g in self.views[view]])
-            
 
     # ------------------------------------------------------------
     # Iteration and listing
@@ -150,7 +144,9 @@ class ListMap:
         """Get the next open ID in O(1) time."""
         return len(self._data[group])
 
-    def values(self, groups: Optional[Iterable[str]] = None, attr: str = None) -> Iterator[Any]:
+    def values(
+        self, groups: Optional[Iterable[str]] = None, attr: str = None
+    ) -> Iterator[Any]:
         for _, _, v in self.items(groups):
             if attr:
                 yield getattr(v, attr)
@@ -176,8 +172,8 @@ class ListMap:
     def apply(self, method, *args):
         for c in self.values():
             if hasattr(c, method):
-                getattr(c, method)(*args) 
-                
+                getattr(c, method)(*args)
+
     # ------------------------------------------------------------
     # Group Actions
     # ------------------------------------------------------------
@@ -191,17 +187,14 @@ class ListMap:
         self._data[group] = []
         self._groups.append(group)
         self._len[group] = 0
-        
+
     # ------------------------------------------------------------
     # Representation
     # ------------------------------------------------------------
 
     def __repr__(self):
         # groups and counts
-        data_lines = [
-            f"  - ({self._len[c]}) {c}"
-            for c in self._groups
-        ]
+        data_lines = [f"  - ({self._len[c]}) {c}" for c in self._groups]
         view_lines = [
             f"  - ({sum(self._len[c] for c in cats)}) {name}: {cats}"
             for name, cats in self.views.items()

@@ -3,7 +3,7 @@
 # from sting.generator.infinite_source import Infinite_source
 
 # @dataclass
-# class System: 
+# class System:
 #     inf_src: list = field(default=list)
 
 #     def __post_init__(self):
