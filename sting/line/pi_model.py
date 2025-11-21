@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Optional
 
 @dataclass
 class LinePiModel:
@@ -14,4 +15,4 @@ class LinePiModel:
     b: float
     name: str = field(default_factory=str)
     type: str = 'line_pi'
-    tags: list =  field(default_factory=lambda : list) 
+    tags: Optional[list] = field(default_factory=lambda : [])
