@@ -5,10 +5,10 @@ from sting.utils.dynamical_systems import modal_analisis
 from sting.utils.power_flow import PowerFlow
 
 
-def run_ssm():
+def run_ssm(inputs_dir=None, write_outputs=True):
 
     # Set up grid from CSV files
-    sys = System.from_csv()
+    sys = System.from_csv(inputs_dir=inputs_dir)
 
     # Run AC-OPF
     sys.clean_up()
@@ -23,7 +23,8 @@ def run_ssm():
     modal_analisis(ssm.A, show=True)
 
     # Save the interconnected system model
-    path = os.path.join(os.getcwd(), "outputs", "small_signal_model")
-    ssm.to_csv(path)
+    if write_outputs:
+        path = os.path.join(os.getcwd(), "outputs", "small_signal_model")
+        ssm.to_csv(path)
 
     return sys, ssm

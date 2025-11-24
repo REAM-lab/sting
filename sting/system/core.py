@@ -57,7 +57,9 @@ class System(ListMap):
 
         # If no input directory is given, try using the working directory
         if not inputs_dir:
-            inputs_directory = os.path.join(os.getcwd(), "inputs")
+            inputs_dir = os.getcwd()
+            
+        inputs_dir = os.path.join(inputs_dir, "inputs")
 
         self = cls(components=components)
 
@@ -70,7 +72,7 @@ class System(ListMap):
 
         for _, c_name, c_class, c_module, filename in meta_data:
 
-            filepath = os.path.join(inputs_directory, filename)
+            filepath = os.path.join(inputs_dir, filename)
             # If no such file exits, continue
             if not os.path.exists(filepath):
                 continue

@@ -5,7 +5,7 @@ import pandas as pd
 from scipy.linalg import eigvals
 from scipy.linalg import block_diag
 from dataclasses import dataclass
-from sting.utils.data_tools import matrix_to_csv
+from sting.utils.data_tools import matrix_to_csv, csv_to_matrix
 
 
 @dataclass(slots=True)
@@ -181,7 +181,22 @@ class StateSpaceModel:
 
     @classmethod
     def from_csv(cls, filepath):
-        pass
+        A = csv_to_matrix(os.path.join(filepath, "A.csv"))
+        B = csv_to_matrix(os.path.join(filepath, "B.csv"))
+        C = csv_to_matrix(os.path.join(filepath, "C.csv"))
+        D = csv_to_matrix(os.path.join(filepath, "D.csv"))
+        
+        x = tuple(map(list, zip(*A.columns)))
+        x = DynamicalVariables(component=x[0], name=x[1])
+        
+        y = tuple(map(list, zip(*C.index.tolist())))
+        y = DynamicalVariables(component=y[0], name=y[1])
+        
+        u = tuple(map(list, zip(*B.columns)))
+        u = DynamicalVariables(component=u[0], name=u[1])
+        
+        return cls(A=A.to_numpy(), B=B.to_numpy(), C=C.to_numpy(), D=D.to_numpy(), x=x, y=y, u=u)
+        
 
     def coordinate_transform(self, invT, T):
         pass

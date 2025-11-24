@@ -98,7 +98,7 @@ class InfiniteSource:
         # Define state-space matrices 
         A = wb * np.array(
             [[-r/l,    1], 
-             [   1, -r/l]])
+             [  -1, -r/l]])
 
         B = wb * np.array(
             [[  1/l,    0, -1/l,    0], 
