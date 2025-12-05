@@ -1,14 +1,13 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import ClassVar
 
 
 @dataclass
 class Bus:
-    idx: int
+    idx: int = field(default=-1, init=False)
     v_min: float
     v_max: float
     p_load: float
     q_load: float
     name: str = field(default_factory=str)
-    type: str = "bus"
-    tags: Optional[list] = field(default_factory=lambda: ["buses"])
+    tags: ClassVar[list[str]] = []

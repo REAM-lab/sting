@@ -20,6 +20,7 @@ setup(
     ],
     python_requires=">=3.12",
     install_requires=[
+        "more_itertools",
         "gamspy",
         "importlib",
         "pandas",

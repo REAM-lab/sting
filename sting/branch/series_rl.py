@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, ClassVar
 import numpy as np
 import copy
 
@@ -28,7 +28,7 @@ class InitialConditionsEMT(NamedTuple):
 
 @dataclass(slots=True)
 class BranchSeriesRL:
-    idx: int
+    idx: int = field(default=-1, init=False)
     from_bus: int
     to_bus: int
     sbase: float
@@ -37,14 +37,14 @@ class BranchSeriesRL:
     r: float
     l: float
     name: str = field(default_factory=str)
-    type: str = "se_rl"
+    tags: ClassVar[list[str]] = ["branch"]
     pf: Optional[PowerFlowVariables] = None
     emt_init: Optional[InitialConditionsEMT] = None
     ssm: Optional[StateSpaceModel] = None
-    tags: Optional[list] = field(default_factory=lambda: ["branches"])
+
 
     def _load_power_flow_solution(self, power_flow_instance):
-        sol = power_flow_instance.branches.loc[f"{self.type}_{self.idx}"]
+        sol = power_flow_instance.branches.loc[f"se_rl_{self.idx}"]
         self.pf = PowerFlowVariables(
             vmag_from_bus=sol.from_bus_vmag.item(),
             vphase_from_bus=sol.from_bus_vphase.item(),
@@ -99,7 +99,7 @@ class BranchSeriesRL:
 
         u = DynamicalVariables(
             name=["v_from_bus_D", "v_from_bus_Q", "v_to_bus_D", "v_to_bus_D"],
-            component=f"{self.type}_{self.idx}",
+            component=f"se_rl_{self.idx}",
             type="grid",
             init=[
                 self.emt_init.v_from_bus_D,
@@ -111,7 +111,7 @@ class BranchSeriesRL:
 
         x = DynamicalVariables(
             name=["i_br_D", "i_br_Q"],
-            component=f"{self.type}_{self.idx}",
+            component=f"se_rl_{self.idx}",
             type="grid",
             init=[self.emt_init.i_br_D, self.emt_init.i_br_Q],
         )

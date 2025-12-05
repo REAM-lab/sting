@@ -130,7 +130,7 @@ class PowerFlow:
         Construct the following tables:
 
         * Generators *
-        gen_idx    | bus_idx  p_min  p_max  q_min  q_max
+        gen_idx   | bus_idx  p_min  p_max  q_min  q_max
         ------------------------------------------------
         inf_src_1 |  1       -2.0   2.0    -5.0    5.0
 
@@ -150,26 +150,19 @@ class PowerFlow:
         pa_rc_1 |        1  0.05  0.066667
 
         """
-        attrs = ["bus_idx", "p_min", "p_max", "q_min", "q_max"]
-        self.generators = self.system.view("generators", attrs, dataframe=True)
-        self.generators.index.name = "gen_idx"
-        self.generators.bus_idx = self.generators.bus_idx.map(str)
+        sys = self.system
 
-        attrs = ["idx", "v_min", "v_max", "p_load", "q_load"]
-        self.buses = (
-            self.system.view("buses", attrs, dataframe=True)
-            .reset_index(drop=True)
-            .set_index("idx")
-        )
-        self.buses.index.name = "bus_idx"
+        attrs = ["bus_idx", "p_min", "p_max", "q_min", "q_max"]
+        self.generators = sys.generators.to_table(*attrs, index_name="gen_idx")
+        self.generators["bus_idx"] = self.generators["bus_idx"].map(str)
+
+        attrs = ["v_min", "v_max", "p_load", "q_load"]
+        self.buses = sys.query("bus").to_table(*attrs, index="idx", index_name="bus_idx")
         self.buses.index = self.buses.index.map(str)
 
-        # Note: we assume only one branch between two adjecent buses
-        attrs = ["from_bus", "to_bus", "r", "l"]
-        self.branches = self.system.view("branches", attrs, dataframe=True)
-
-        attrs = ["bus_idx", "g", "b"]
-        self.shunts = self.system.view("shunts", attrs, dataframe=True)
+        # Note: we assume only one branch between two adjacent buses
+        self.branches = sys.branches.to_table("from_bus", "to_bus", "r", "l")
+        self.shunts = sys.shunts.to_table("bus_idx", "g", "b")
 
     def run_acopf(self):
         """

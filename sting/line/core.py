@@ -7,13 +7,9 @@ def decompose_lines(system):
     print("> Add branches and shunts from dissecting lines:")
     print("\t- Lines with no series compensation", end=" ")
 
-    # Get the next open index for parallel RC shunts
-    shunt_idx = system.next_open("pa_rc")
-
-    for line in system["line_pi"]:
+    for line in system.line_pi:
 
         branch = BranchSeriesRL(
-            idx=line.idx,
             from_bus=line.from_bus,
             to_bus=line.to_bus,
             sbase=line.sbase,
@@ -24,7 +20,7 @@ def decompose_lines(system):
         )
 
         from_shunt = ShuntParallelRC(
-            idx=shunt_idx,
+            name=f"from_shunt_{line.idx}",
             bus_idx=line.from_bus,
             sbase=line.sbase,
             vbase=line.vbase,
@@ -34,7 +30,7 @@ def decompose_lines(system):
         )
 
         to_shunt = ShuntParallelRC(
-            idx=shunt_idx + 1,
+            name=f"to_shunt_{line.idx}",
             bus_idx=line.to_bus,
             sbase=line.sbase,
             vbase=line.vbase,
@@ -47,11 +43,9 @@ def decompose_lines(system):
         system.add(branch)
         system.add(from_shunt)
         system.add(to_shunt)
-        # Increment the shunt index
-        shunt_idx += 2
 
     # Delete all lines so they cannot be added to the system again
-    system.clear("line_pi")
+    system.line_pi = []
 
     print("... ok.\n")
     # TODO: Do the same for line with series compensation

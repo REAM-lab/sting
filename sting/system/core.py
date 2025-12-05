@@ -1,7 +1,9 @@
 import pandas as pd
 import importlib
 import os
+import itertools
 from typing import get_type_hints
+from dataclasses import fields
 from sting import __logo__
 from sting import data_files
 from sting.line.core import decompose_lines
@@ -14,7 +16,14 @@ import sting.system.selections as sl
 
 
 class System:
-    
+    """
+    A power system object comprised of multiple components. 
+
+    A list components of all possible are components within the system
+    can be supplied during initialization. If no such list is supplied, 
+    the power system will be initialized to accommodate all components 
+    in ./data_files/components_metadata.csv.
+    """
     # ------------------------------------------------------------
     # Construction + Read/Write
     # ------------------------------------------------------------
@@ -25,13 +34,19 @@ class System:
 
         data_dir = os.path.dirname(data_files.__file__)
         filepath = os.path.join(data_dir, "components_metadata.csv")
-        meta_data = pd.read_csv(filepath)
+        self.components = pd.read_csv(filepath)
 
         # If components are given, only use the relevant meta-data
         if components:
-            self.meta_data = meta_data[meta_data["type"].isin(components)]
+            active_components = self.components["type"].isin(components)
+            self.components = self.components[active_components]
 
-        # TODO: Set up attr lists
+        # Mapping of a components class to its string representation
+        self.class_to_str = dict(zip(self.components["class"], self.components["type"]))
+
+        # Create a new attribute (an empty list) for each component type 
+        for component_name in self.components["type"]:
+            setattr(self, component_name, [])
 
         print("... ok.")
 
@@ -47,10 +62,10 @@ class System:
 
         print("> Load components via CSV files from:")
 
-        for _, c_name, c_class, c_module, filename in self.meta_data.itertuples(
+        for _, c_name, c_class, c_module, filename in self.components.itertuples(
             name=None
         ):
-
+            # Expected file with components 
             filepath = os.path.join(inputs_dir, filename)
             # If no such file exits, continue
             if not os.path.exists(filepath):
@@ -80,8 +95,15 @@ class System:
 
         return self
 
-    def to_csv(self, file_dir=None):
-        pass
+    def to_csv(self, output_dir=None):
+        # TODO: This is untested
+        for name in self.components["type"]:
+          lst = getattr(self, name)
+          if lst:
+              # Assumes each component is a dataclass with fields
+              cols = fields(lst[0])
+              df = self.query(name).to_table(cols)
+              df.to_csv(os.path.join(output_dir, self.components["input_csv"]))
 
     def to_matlab(self, session_name=None):
         # TODO: Not sure if this has been tested
@@ -112,44 +134,47 @@ class System:
     # Component Management + Searching
     # ------------------------------------------------------------
     def add(self, component):
-        """Register a new component in the system."""
-        # TODO: do this correctly
-        c_type = type(component)
-
-        c_list = getattr(self, c_type)
-        component.idx = len(c_list) + 1
-        c_list.append(component)
+        """Add a new component to the system."""
+        # Get the component string representation (InfiniteSource -> inf_src)
+        component_attr = self.class_to_str[type(component).__name__]
+        component_list = getattr(self, component_attr)
+        # Assign the component a 1-based index value
+        component.idx = len(component_list) + 1
+        # Add the component to the list
+        component_list.append(component)
         
-    def _generator(self, component_types):
-        # Yield all components following the order in component_types
-        for component_type in component_types:
-            for component in getattr(self, component_type):
-                yield component
+    def _generator(self, names):
+        # Collect all lists of components in the component_types
+        all_components = [getattr(self, name) for name in names]
+         # Yield all components following the order in component_types
+        return itertools.chain(*all_components)
 
     def query(self, *args):
         """
         Return a Stream over a set of component types. Analogous to FROM in 
         SQL, specifying which tables to access data from. For example, 
         "FROM gfmi_a, inf_src SELECT idx" would be written as:
-        >>> system.query("gfmi_a", "inf_src").select("idx")
+        >>> power_sys.query("gfmi_a", "inf_src").select("idx")
         
         If no tables are provided runs a Stream over all components.
         """
         if not args:
-            return sl.Stream(self)
-        
-        return sl.Stream(self._generator(args))
+            return sl.Stream(self, index_map=self.class_to_str)
+        # Unpack all args calling on self if they are a function
+        names = [arg(self) if callable(arg) else [arg] for arg in args]
+        # Flatten the list of component types to query from
+        names = itertools.chain(*names)
+
+        return sl.Stream(self._generator(names), index_map=self.class_to_str)
 
     def __iter__(self):
-        return self._generator(self.meta_data["type"])
+        return self._generator(self.components["type"])
     
     def apply(self, method, *args):
         """Call a given method on all components with the method."""
-        def helper(component):
+        for component in self:
             if hasattr(component, method):
                 getattr(component, method)(*args)
-                
-        return self.query().map(helper)
 
     @property
     def generators(self):
@@ -171,7 +196,7 @@ class System:
         Apply any component clean up needed prior to methods like power flow.
         """
         decompose_lines(self)
-        # combine_shunts(self)
+        #TODO: I think combine_shunts(self) is untested
 
     def construct_ssm(self, pf_instance):
         """
@@ -186,18 +211,18 @@ class System:
         self.connections = get_ccm_matrices(self)
 
     def interconnect(self):
+        """
+        Return a state-space model of all interconnected components
+        """
         # Get components in order of generators, then shunts, then branches
-        generators = self.generators.select("ssm").to_list()
-        shunts = self.shunts.select("ssm").to_list()
-        branches = self.branches.select("ssm").to_list()
+        generators, = self.generators.select("ssm")
+        shunts, = self.shunts.select("ssm")
+        branches, = self.branches.select("ssm")
 
-        models = generators + shunts + branches
+        models = itertools.chain(generators, shunts, branches)
 
         # Then interconnect models
         return StateSpaceModel.from_interconnected(models, self.connections)
-
-    def stack(self):
-        return StateSpaceModel.from_stacked(self.components.all())
 
     # ------------------------------------------------------------
     # Model Reduction (TBD?)

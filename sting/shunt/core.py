@@ -5,8 +5,8 @@ def combine_shunts(system):
 
     print("> Reduce shunts to have one shunt per bus:")
 
-    shunt_df = (
-        system.view("shunts", attrs=["bus_idx", "g", "b"], dataframe=True)
+    shunt_df = (system.shunts
+        .to_table("bus_idx", "g", "b")
         .reset_index(drop=True)
         .pivot_table(index="bus_idx", values=["g", "b"], aggfunc="sum")
     )
@@ -17,7 +17,7 @@ def combine_shunts(system):
     shunt_df.drop(columns=["b", "g"], inplace=True)
 
     # Clear all existing parallel RC shunts
-    system.clear("pa_rc")
+    system.pa_rc = []
 
     # Add each effective/combined parallel RC shunt to the pa_rc components
     for _, row in shunt_df.iterrows():

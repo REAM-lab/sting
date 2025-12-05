@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.linalg import block_diag
 from dataclasses import dataclass, field
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, ClassVar
 from sting.utils.dynamical_systems import StateSpaceModel, DynamicalVariables
 
 
@@ -26,7 +26,7 @@ class InitialConditionsEMT(NamedTuple):
 
 @dataclass(slots=True)
 class InfiniteSource:
-    idx: int
+    idx: int = field(default=-1, init=False)
     bus_idx: int
     p_min: float
     p_max: float
@@ -41,11 +41,10 @@ class InfiniteSource:
     emt_init: Optional[InitialConditionsEMT] = None
     ssm: Optional[StateSpaceModel] = None
     name: str = field(default_factory=str)
-    type: str = "inf_src"
-    tags: Optional[list] = field(default_factory=lambda: ["generators"])
+    tags: ClassVar[list[str]] = ["generator"]
 
     def _load_power_flow_solution(self, power_flow_instance):
-        sol = power_flow_instance.generators.loc[f"{self.type}_{self.idx}"]
+        sol = power_flow_instance.generators.loc[f"inf_src_{self.idx}"]
         self.pf = PowerFlowVariables(
             p_bus=sol.p.item(),
             q_bus=sol.q.item(),
@@ -115,7 +114,7 @@ class InfiniteSource:
 
         u = DynamicalVariables(
             name=["v_bus_D", "v_bus_Q", "v_ref_d", "v_ref_q"],
-            component=f"{self.type}_{self.idx}",
+            component=f"inf_src_{self.idx}",
             type=["grid", "grid", "device", "device"],
             init=[v_bus_D, v_bus_Q, v_int_d, v_int_q],
         )
@@ -125,7 +124,7 @@ class InfiniteSource:
 
         y = DynamicalVariables(
             name=["i_bus_D", "i_bus_Q"],
-            component=f"{self.type}_{self.idx}",
+            component=f"inf_src_{self.idx}",
             type="grid",
             init=[i_bus_D, i_bus_Q],
         )
@@ -135,7 +134,7 @@ class InfiniteSource:
 
         x = DynamicalVariables(
             name=["i_bus_d", "i_bus_q"],
-            component=f"{self.type}_{self.idx}",
+            component=f"inf_src_{self.idx}",
             type="device",
             init=[i_bus_d, i_bus_q],
         )

@@ -1,10 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import ClassVar
 
 
 @dataclass
 class LinePiModel:
-    idx: str
     from_bus: str
     to_bus: str
     sbase: float
@@ -14,6 +13,6 @@ class LinePiModel:
     l: float
     g: float
     b: float
+    idx: int = field(default=-1, init=False)
     name: str = field(default_factory=str)
-    type: str = "line_pi"
-    tags: Optional[list] = field(default_factory=lambda: [])
+    tags: ClassVar[list[str]] = ["line"]

@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.linalg import block_diag
+from sting.system.selections import find_tagged
 
 # from sting.models import ComponentConnections
 
@@ -92,16 +93,13 @@ def build_oriented_incidence_matrix(num_buses: int, branch_data: list):
 
 def get_ccm_matrices(system):
     """ """
-    attrs = ["bus_idx", "ssm"]
-    gen_buses, gen_ssm = system.view("generators", attrs=attrs)
+    gen_buses, gen_ssm = system.generators.select("bus_idx", "ssm")
+    from_bus, to_bus, br_ssm = system.branches.select("from_bus", "to_bus", "ssm")
 
-    attrs = ["from_bus", "to_bus", "ssm"]
-    from_bus, to_bus, br_ssm = system.view("branches", attrs=attrs)
-
-    sh_ssm = system.view("shunts", attrs="ssm")
+    sh_ssm, = system.shunts.select("ssm")
 
     # Get the number of buses of the full system
-    n_buses = system.length(view="buses")
+    n_buses = len(system.bus)
 
     # Build generation connection matrix
     gen_cx = build_generation_connection_matrix(n_buses, list(gen_buses))
@@ -187,21 +185,20 @@ def build_ccm_permutation(system):
     """
     # Create empty lists for transformations, list order follows that of generator_types_list
     Y1, Y2, T1 = [], [], []
-
     # Iterate over the all generator types: [inf_src, gfmi_a, gfmi_b, ...]
-    for gen_type in system.views["generators"]:
+    generator_types = find_tagged(system, "generator")
+    for gen_type in generator_types:
         # Number of generators of the given type
-        n = system.length(group=gen_type)
+        gens = getattr(system, gen_type)
+        n = len(gens)
 
         if n == 0:
             continue
 
         # Note: all generators in 'gens' of the same class and will have
         # the same inputs and outputs. Thus, we only need to examine gen_0.
-        gen_0 = next(system.values(gen_type))
-
-        d = gen_0.ssm.u.n_device  # number of device-side inputs
-        g = gen_0.ssm.u.n_grid  # number of grid-side inputs
+        d = gens[0].ssm.u.n_device  # number of device-side inputs
+        g = gens[0].ssm.u.n_grid  # number of grid-side inputs
 
         # Build transformation (permutation) matrices
         X1 = np.kron(np.eye(n), np.hstack((np.eye(d), np.zeros((d, g)))))

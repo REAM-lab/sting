@@ -1,7 +1,7 @@
 import numpy as np
 import os
 import pandas as pd
-
+from more_itertools import transpose
 from scipy.linalg import eigvals
 from scipy.linalg import block_diag
 from dataclasses import dataclass
@@ -145,9 +145,9 @@ class StateSpaceModel:
         Create a state space-model by stacking a collection of state-space models.
         """
         fields = ["A", "B", "C", "D", "u", "y", "x"]
-
-        stack = {f: [getattr(c, f) for c in components] for f in fields}
-        # stack = dict(zip(fields(StateSpaceModel), zip(*components)))
+        selection = [[getattr(c, f) for f in fields] for c in components]
+        
+        stack = dict(zip(fields, transpose(selection)))
         A = block_diag(*stack["A"])
         B = block_diag(*stack["B"])
         C = block_diag(*stack["C"])

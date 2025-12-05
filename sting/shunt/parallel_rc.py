@@ -1,6 +1,6 @@
 import numpy as np
 from dataclasses import dataclass, field
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, ClassVar
 import copy
 
 from sting.utils.dynamical_systems import StateSpaceModel, DynamicalVariables
@@ -22,7 +22,7 @@ class InitialConditionsEMT(NamedTuple):
 
 @dataclass
 class ShuntParallelRC:
-    idx: int
+    idx: int = field(default=-1, init=False)
     bus_idx: int
     sbase: float
     vbase: float
@@ -33,8 +33,7 @@ class ShuntParallelRC:
     emt_init: Optional[InitialConditionsEMT] = None
     ssm: Optional[StateSpaceModel] = None
     name: str = field(default_factory=str)
-    type: str = "pa_rc"
-    tags: Optional[list] = field(default_factory=lambda: ["shunts"])
+    tags: ClassVar[list[str]] = ["shunt"]
 
     @property
     def g(self):
@@ -45,7 +44,7 @@ class ShuntParallelRC:
         return 1 / self.c
 
     def _load_power_flow_solution(self, power_flow_instance):
-        sol = power_flow_instance.shunts.loc[f"{self.type}_{self.idx}"]
+        sol = power_flow_instance.shunts.loc[f"pa_rc_{self.idx}"]
         self.pf = PowerFlowVariables(
             vmag_bus=sol.bus_vmag.item(), vphase_bus=sol.bus_vphase.item()
         )
@@ -87,14 +86,14 @@ class ShuntParallelRC:
 
         u = DynamicalVariables(
             name=["i_bus_D", "i_bus_Q"],
-            component=f"{self.type}_{self.idx}",
+            component=f"pa_rc_{self.idx}",
             type="grid",
             init=[self.emt_init.i_bus_D, self.emt_init.i_bus_Q],
         )
 
         x = DynamicalVariables(
             name=["v_bus_D", "v_bus_Q"],
-            component=f"{self.type}_{self.idx}",
+            component=f"pa_rc_{self.idx}",
             type="grid",
             init=[self.emt_init.v_bus_D, self.emt_init.v_bus_Q],
         )

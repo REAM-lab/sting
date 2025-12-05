@@ -5,7 +5,7 @@ Welcome! This repository contains the STING—**S**pecialized **T**ool for **IN*
 ## Installation 
 
 
-1. **Download STING**: Make sure you have [python3.12](https://www.python.org/downloads/) (or greater) installed on your computer. Start by cloning this repository and navigating into the STING directory.
+1. **Download STING**: Make sure you have [python3.12](https://www.python.org/downloads/release/python-3129/) (or greater) installed on your computer. Start by cloning this repository and navigating into the STING directory.
     ```
     $ git clone https://github.com/REAM-lab/STING
     $ cd STING

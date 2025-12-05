@@ -9,11 +9,11 @@ class TestExampleSystems(unittest.TestCase):
 
     def testcase1(self):
         # Read the correct state-space matrices
-        outputs_dir = os.path.join(os.getcwd(), "testcase1_ssm")
+        outputs_dir = os.path.join(os.getcwd(), "tests", "end_to_end" ,"testcase1_ssm")
         true_ssm = StateSpaceModel.from_csv(outputs_dir)
         # Compute SSM with current version of STING
         input_dir = os.path.join(
-            os.getcwd(), os.pardir, os.pardir, "examples", "testcase1"
+            os.getcwd(), "examples", "testcase1"
         )
         sys, ssm = run_ssm(input_dir, write_outputs=False)
         # Compare SSMs to within numerical precision
