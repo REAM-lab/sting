@@ -45,7 +45,7 @@ def decompose_lines(system):
         system.add(to_shunt)
 
     # Delete all lines so they cannot be added to the system again
-    system.line_pi = []
+    # system.line_pi = []
 
     print("... ok.\n")
     # TODO: Do the same for line with series compensation

@@ -1,9 +1,12 @@
+# Import Python packages
 import pandas as pd
 import importlib
 import os
 import itertools
 from typing import get_type_hints
 from dataclasses import fields
+
+# Import source packages
 from sting import __logo__
 from sting import data_files
 from sting.line.core import decompose_lines
@@ -28,13 +31,29 @@ class System:
     # Construction + Read/Write
     # ------------------------------------------------------------
     def __init__(self, components=None):
+        """
+        Create attributes for the system that correspond to different types of components
+        For example: if we type sys = System(), then sys will have the attributes
+        sys.gfli_a, sys.gfmi_c, etc, and each of them initialized with empty lists []. 
+        Each of these component types are by default given in the file components_metadata.csv.
 
-        print(__logo__)
+        ### Inputs:
+        - self (System instance)
+        - components (list): Type of components, for example components=['gfli_a', 'gfmi_c'].
+
+        ### Outputs:
+        - self.components (dataframe): Stores the list of components, modules, classes and csv files.
+        - self.class_to_str (dict): Maps class with type for each component. For example, InfiniteSource => inf_src
+        """
+
+        print(__logo__) # print logo when a System instance is created
         print("> System initialization", end=" ")
 
-        data_dir = os.path.dirname(data_files.__file__)
-        filepath = os.path.join(data_dir, "components_metadata.csv")
-        self.components = pd.read_csv(filepath)
+        # Get components_metadata.csv as a dataframe.
+        # This file contains information of the lists of components that integrate the system
+        data_dir = os.path.dirname(data_files.__file__) # get directory of data_files
+        filepath = os.path.join(data_dir, "components_metadata.csv") # get directory 
+        self.components = pd.read_csv(filepath) # get list of components as dataframe
 
         # If components are given, only use the relevant meta-data
         if components:
@@ -51,39 +70,71 @@ class System:
         print("... ok.")
 
     @classmethod
-    def from_csv(cls, inputs_dir=None, components=None):
+    def from_csv(cls, case_dir=os.getcwd(), components=None):
+        """
+        Add components from csv files. Each csv file has components of the same type.
+        For example: gfli_a.csv contains ten gflis, but from the same type gfli_a.
+        Each row of gfli_a.csv is a gfli_a that will be added to the system attribute gfli_a. 
+        
+        ### Inputs:
+        - cls (System class)
+        - case_dir (str): Directory of the case study. 
+                        This directory has a folder "inputs" that has the csv files. 
+                        By default it is current directory where we execute sting.
+        - components (list): Type of components, for example components=['gfli_a', 'gfmi_c'].
+        
+        ### Outputs:
+        - self (System instance): it contains the components that have data from csv files.
+        """
 
-        # If no input directory is given, try using the working directory
-        if not inputs_dir:
-            inputs_dir = os.getcwd()
+        # Get directory of the folder "inputs"
+        inputs_dir = os.path.join(case_dir, "inputs") 
 
-        inputs_dir = os.path.join(inputs_dir, "inputs")
-        self = cls(components=components)
+        # Create instance System.
+        self = cls(components=components) 
 
         print("> Load components via CSV files from:")
 
         for _, c_name, c_class, c_module, filename in self.components.itertuples(
             name=None
         ):
-            # Expected file with components 
+            # Expected file with components, for example: gfli_a.csv, or inf_src.csv
             filepath = os.path.join(inputs_dir, filename)
-            # If no such file exits, continue
+
+            # If no such file exits, continue. For example, 
+            # if there is no gfli_a.csv, then the sys.gfli_a = []
             if not os.path.exists(filepath):
                 continue
 
-            # Import module, class, and expected data types
-            class_module = importlib.import_module(c_module)
+            # Import module (.py file). For example import sting.generator.gfli_a
+            class_module = importlib.import_module(c_module) 
+
+            # Import class. For example, GFLI_a
             component_class = getattr(class_module, c_class)
-            parameters_dtypes = get_type_hints(component_class)
-            parameters_dtypes = {
+
+            # Get a dictionary that maps fields of class with their corresponding types
+            class_param_types = get_type_hints(component_class)
+            #parameters_dtypes = {
+            #    key: value
+            #    for key, value in parameters_dtypes.items()
+            #    if value.__module__ == "builtins"
+            #}
+
+            # Read only 1 row, do not treat the first row as headers (header=None)
+            df = pd.read_csv(filepath, nrows=1, header=None)
+            csv_header = df.iloc[0].tolist()
+
+            # Filter out the pairs (key, value) from class_param_types 
+            # that are not in csv header
+            param_types = {
                 key: value
-                for key, value in parameters_dtypes.items()
-                if value.__module__ == "builtins"
+                for key, value in class_param_types.items()
+                if key in csv_header
             }
 
             # Read components csv
             print(f"\t- '{filepath}'", end=" ")
-            df = pd.read_csv(filepath, dtype=parameters_dtypes)
+            df = pd.read_csv(filepath, dtype=param_types)
 
             # Create a component for each row (i.e., component) in the csv
             for row in df.itertuples(index=False):
@@ -105,9 +156,12 @@ class System:
               df = self.query(name).to_table(cols)
               df.to_csv(os.path.join(output_dir, self.components["input_csv"]))
 
-    def to_matlab(self, session_name=None):
+    def to_matlab(self, session_name=None, export=None, excluded_attributes=None):
         # TODO: Not sure if this has been tested
         import matlab.engine
+
+        if export is None:
+            export = list(self.class_to_str.values())
 
         current_matlab_sessions = matlab.engine.find_matlab()
 
@@ -118,14 +172,12 @@ class System:
             eng = matlab.engine.connect_matlab(session_name)
             print(f"> Connect to Matlab session: {session_name} ... ok.")
 
-        components_types = self.component_types
-        for typ in components_types:
+        for typ in export :
             components = getattr(self, typ)
 
             components_dict = [
-                data_tools.convert_class_instance_to_dictionary(i) for i in components
+                data_tools.convert_class_instance_to_dictionary(i, excluded_attributes=excluded_attributes) for i in components
             ]
-
             eng.workspace[typ] = components_dict
 
         eng.quit()

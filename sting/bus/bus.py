@@ -5,6 +5,9 @@ from typing import ClassVar
 @dataclass
 class Bus:
     idx: int = field(default=-1, init=False)
+    sbase: float
+    vbase: float
+    fbase: float
     v_min: float
     v_max: float
     p_load: float

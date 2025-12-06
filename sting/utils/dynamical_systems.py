@@ -2,8 +2,8 @@ import numpy as np
 import os
 import pandas as pd
 from more_itertools import transpose
-from scipy.linalg import eigvals
-from scipy.linalg import block_diag
+from scipy.linalg import eigvals, block_diag
+from scipy.integrate import solve_ivp
 from dataclasses import dataclass
 from sting.utils.data_tools import matrix_to_csv, csv_to_matrix
 
@@ -222,6 +222,44 @@ class StateSpaceModel:
 
     def __repr__(self):
         return "StateSpaceModel with %d inputs, %d outputs, and %d states." % self.shape
+    
+    def sim(self, tps, u_func, x0 = None, ode_method= 'Radau', ode_max_step = 0.01):
+
+        if x0 is None:
+            x0 = np.zeros_like(self.x.init)
+
+        def state_space_ode(t, x, u_func):
+            """
+            Defines the right-hand side of the state-space differential equation.
+
+            Args:
+            t (float): Current time.
+            x (np.ndarray): Current state vector.
+            A (np.ndarray): State matrix.
+            B (np.ndarray): Input matrix.
+            u_func (callable): Function that returns the input vector u at time t.
+
+            Returns:
+            np.ndarray: Time derivative of the state vector (dx/dt).
+            """
+
+            u = u_func(t)
+            return self.A @ x + self.B @ u
+        
+        t_in = tps[0]
+        t_fin = tps[-1]
+        sol = solve_ivp(
+                        fun=state_space_ode,
+                        t_span=[t_in, t_fin],
+                        y0=x0,
+                        args=(u_func,),
+                        method = ode_method,
+                        max_step = ode_max_step,
+                        dense_output=True # To get a continuous solution for plotting
+                        )
+        interp_sol = sol.sol(tps)
+
+        return interp_sol
 
 
 def modal_analisis(
