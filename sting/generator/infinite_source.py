@@ -41,42 +41,16 @@ class InfiniteSource:
     emt_init: Optional[InitialConditionsEMT] = None
     ssm: Optional[StateSpaceModel] = None
     name: str = field(default_factory=str)
+    type: str = "inf_src"
     tags: ClassVar[list[str]] = ["generator"]
 
     def _load_power_flow_solution(self, power_flow_instance):
-        sol = power_flow_instance.generators.loc[f"inf_src_{self.idx}"]
+        sol = power_flow_instance.generators.loc[f"{self.type}_{self.idx}"]
         self.pf = PowerFlowVariables(
             p_bus=sol.p.item(),
             q_bus=sol.q.item(),
             vmag_bus=sol.bus_vmag.item(),
             vphase_bus=sol.bus_vphase.item(),
-        )
-
-    def _calculate_emt_initial_conditions(self):
-        vmag_bus = self.pf.vmag_bus
-        vphase_bus = self.pf.vphase_bus
-        p_bus = self.pf.p_bus
-        q_bus = self.pf.q_bus
-
-        v_bus_DQ = vmag_bus * np.exp(vphase_bus * 1j * np.pi / 180)
-        i_bus_DQ = ((p_bus + 1j * q_bus) / v_bus_DQ).conjugate()
-
-        v_int_DQ = v_bus_DQ + i_bus_DQ * (self.r + 1j * self.l)
-        angle_ref = np.angle(v_int_DQ, deg=True)
-
-        v_int_dq = v_int_DQ * np.exp(-angle_ref * np.pi / 180 * 1j)
-        i_bus_dq = i_bus_DQ * np.exp(-angle_ref * np.pi / 180 * 1j)
-
-        self.emt_init = InitialConditionsEMT(
-            v_bus_D=v_bus_DQ.real,
-            v_bus_Q=v_bus_DQ.imag,
-            v_int_d=v_int_dq.real,
-            v_int_q=v_int_dq.imag,
-            i_bus_d=i_bus_dq.real,
-            i_bus_q=i_bus_dq.imag,
-            i_bus_D=i_bus_DQ.real,
-            i_bus_Q=i_bus_DQ.imag,
-            angle_ref=angle_ref,
         )
 
     def _build_small_signal_model(self):
@@ -114,7 +88,7 @@ class InfiniteSource:
 
         u = DynamicalVariables(
             name=["v_bus_D", "v_bus_Q", "v_ref_d", "v_ref_q"],
-            component=f"inf_src_{self.idx}",
+            component=f"{self.type}_{self.idx}",
             type=["grid", "grid", "device", "device"],
             init=[v_bus_D, v_bus_Q, v_int_d, v_int_q],
         )
@@ -124,7 +98,7 @@ class InfiniteSource:
 
         y = DynamicalVariables(
             name=["i_bus_D", "i_bus_Q"],
-            component=f"inf_src_{self.idx}",
+            component=f"{self.type}_{self.idx}",
             type="grid",
             init=[i_bus_D, i_bus_Q],
         )
@@ -134,9 +108,38 @@ class InfiniteSource:
 
         x = DynamicalVariables(
             name=["i_bus_d", "i_bus_q"],
-            component=f"inf_src_{self.idx}",
+            component=f"{self.type}_{self.idx}",
             type="device",
             init=[i_bus_d, i_bus_q],
         )
 
         self.ssm = StateSpaceModel(A=A, B=B, C=C, D=D, u=u, y=y, x=x)
+
+    def _calculate_emt_initial_conditions(self):
+        vmag_bus = self.pf.vmag_bus
+        vphase_bus = self.pf.vphase_bus
+        p_bus = self.pf.p_bus
+        q_bus = self.pf.q_bus
+
+        v_bus_DQ = vmag_bus * np.exp(vphase_bus * 1j * np.pi / 180)
+        i_bus_DQ = ((p_bus + 1j * q_bus) / v_bus_DQ).conjugate()
+
+        v_int_DQ = v_bus_DQ + i_bus_DQ * (self.r + 1j * self.l)
+        angle_ref = np.angle(v_int_DQ, deg=True)
+
+        v_int_dq = v_int_DQ * np.exp(-angle_ref * np.pi / 180 * 1j)
+        i_bus_dq = i_bus_DQ * np.exp(-angle_ref * np.pi / 180 * 1j)
+
+        self.emt_init = InitialConditionsEMT(
+            v_bus_D=v_bus_DQ.real,
+            v_bus_Q=v_bus_DQ.imag,
+            v_int_d=v_int_dq.real,
+            v_int_q=v_int_dq.imag,
+            i_bus_d=i_bus_dq.real,
+            i_bus_q=i_bus_dq.imag,
+            i_bus_D=i_bus_DQ.real,
+            i_bus_Q=i_bus_DQ.imag,
+            angle_ref=angle_ref,
+        )
+
+
