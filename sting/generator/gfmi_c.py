@@ -190,7 +190,7 @@ class GFMIc:
                                                         [0, 0, 0, -droop_q]]),
                                         D = np.vstack(( np.zeros((2,7)),
                                                         np.hstack((np.zeros((5, )), [droop_q, 1])))),
-                                        x = DynamicalVariables(name=['pi_pc', 'w_pc', 'p_pc', 'q_pc'],
+                                        x = DynamicalVariables(name=['angle_pc', 'w_pc', 'p_pc', 'q_pc'],
                                                                init = [0, 0, p_ref, q_ref]),
                                         u = DynamicalVariables(name=['v_lcl_sh_d', 'v_lcl_sh_q', 'i_bus_d', 'i_bus_q', 'p_ref', 'q_ref', 'v_ref']),
                                         y = DynamicalVariables(name=['phi_pc', 'w_pc', 'v_lcl_sh_ref'])
