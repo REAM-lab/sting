@@ -1,5 +1,11 @@
 """
-Untested, still in development.
+This module contains the GFMI generator that includes:
+- Virtual inertia control
+- Droop control for reactive power
+- LCL filter
+- Voltage magnitude controller
+
+There is no DC-side dynamics modeled for the GFMI.
 """
 
 # Import standard python packages
