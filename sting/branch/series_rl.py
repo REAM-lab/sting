@@ -40,6 +40,7 @@ class BranchSeriesRL:
     tags: ClassVar[list[str]] = ["branch"]
     pf: Optional[PowerFlowVariables] = None
     emt_init: Optional[InitialConditionsEMT] = None
+    type: str = "se_rl"
     ssm: Optional[StateSpaceModel] = None
 
 
@@ -118,3 +119,34 @@ class BranchSeriesRL:
         y = copy.deepcopy(x)
 
         self.ssm = StateSpaceModel(A=A, B=B, C=C, D=D, u=u, y=y, x=x)
+
+    def _EMT_variables(self):
+        # States
+        x = DynamicalVariables(
+            name=["i_bus_a", "i_bus_b", "i_bus_c"],
+            component=f"{self.type}_{self.idx}",
+            tags=f"{self.tags[0]}"
+        )
+
+        # Inputs
+        u = DynamicalVariables(
+            name=["v_from_bus_a", "v_from_bus_b", "v_from_bus_c", 
+                  "v_to_bus_a", "v_to_bus_b", "v_to_bus_c"],
+            component=f"{self.type}_{self.idx}",
+            type=["grid", "grid", "grid", "grid", "grid", "grid"],
+            tags=f"{self.tags[0]}"
+        )
+
+        # Outputs
+        y = DynamicalVariables(
+            name=["i_bus_a", "i_bus_b", "i_bus_c"],
+            component=f"{self.type}_{self.idx}",
+            tags=f"{self.tags[0]}")
+
+        return x, u, y
+    
+    def _EMT_output_equations(self, t, x, u):
+        
+        i_bus_a, i_bus_b, i_bus_c = x
+
+        return [i_bus_a, i_bus_b, i_bus_c]

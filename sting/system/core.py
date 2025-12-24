@@ -5,6 +5,7 @@ import os
 import itertools
 from typing import get_type_hints
 from dataclasses import fields
+import numpy as np 
 
 # Import source packages
 from sting import __logo__
@@ -14,7 +15,7 @@ from sting.utils import data_tools
 
 # from sting.shunt.core import combine_shunts
 from sting.utils.graph_matrices import get_ccm_matrices
-from sting.utils.dynamical_systems import StateSpaceModel
+from sting.utils.dynamical_systems import StateSpaceModel, DynamicalVariables
 import sting.system.selections as sl
 
 
@@ -157,7 +158,7 @@ class System:
               df.to_csv(os.path.join(output_dir, self.components["input_csv"]))
 
     def to_matlab(self, session_name=None, export=None, excluded_attributes=None):
-        # TODO: Not sure if this has been tested
+
         import matlab.engine
 
         if export is None:
@@ -280,24 +281,50 @@ class System:
     # EMT simulation
     # ------------------------------------------------------------
 
-    def sim_emt(self, t_stop: float, dt: float, solver: str = "RK45"):
+    def sim_emt(self):
         """
         Simulate the EMT dynamics of the system using scipy.integrate.solve_ivp
         """
         
-        # define states
+        x_var = []
+        u_var = []
+        y_var = []
+        for component in self:
+                if hasattr(component, "_EMT_variables"):
+                    x, u, y = getattr(component, "_EMT_variables")()
+
+                    x_var.extend([*x])
+                    u_var.extend([*u])
+                    y_var.extend([*y])
         
+        order = ['generator', 'shunt', 'branch']
+
+        x_var = sorted(x_var, key=lambda s: order.index(s.tags))
+        x_var = list(enumerate(x_var))
+        
+        x = np.array(range(len(x_var))) # ex
+        t = 0
+        y_stack = []
+        for component in self:
+                if hasattr(component, "_EMT_output_equations"):
+                    idx = [i for i, var in x_var if var.component == f"{component.type}_{component.idx}"]
+                    x_comp = x[idx]
+                    y = getattr(component, "_EMT_output_equations")(t, x_comp, 0)
+                    y_stack.extend(y)
+
+        """
         def system_ode(t, x, u):
 
             # x
 
-            ystack = []
+            y_stack = []
 
             for component in self:
                 if hasattr(component, "_EMT_output_equations"):
-                    y = getattr(component, "_EMT_output_equations")(t, x, ud, ug)
-                    ystack.append(y)
+                    y = getattr(component, "_EMT_output_equations")(t, x, x_var, u, u_var)
+                    y_stack.append(y)
 
+            y_stack = np.array(y_stack).flatten()
             # y_stack
             # u
 
@@ -305,14 +332,14 @@ class System:
 
             for component in self:
                 if hasattr(component, "_EMT_state_dynamics"):            
-                    dx = getattr(component, "_EMT_state_dynamics")(t, x, ud, ug)
+                    dx = getattr(component, "_EMT_state_dynamics")(t, x, x_var, u, u_var)
                     
 
                     # collect by type
 
                     # 
             return dx
-        
+        """
         
 
     # ------------------------------------------------------------

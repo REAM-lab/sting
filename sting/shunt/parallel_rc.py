@@ -33,6 +33,7 @@ class ShuntParallelRC:
     emt_init: Optional[InitialConditionsEMT] = None
     ssm: Optional[StateSpaceModel] = None
     name: str = field(default_factory=str)
+    type: str = "pa_rc"
     tags: ClassVar[list[str]] = ["shunt"]
 
     @property
@@ -100,3 +101,27 @@ class ShuntParallelRC:
         y = copy.deepcopy(x)
 
         self.ssm = StateSpaceModel(A=A, B=B, C=C, D=D, u=u, y=y, x=x)
+
+    def _EMT_variables(self):
+        # States
+        x = DynamicalVariables(
+            name=["v_bus_a", "v_bus_b", "v_bus_c"],
+            component=f"{self.type}_{self.idx}",
+            tags=f"{self.tags[0]}"
+        )
+
+        # Inputs
+        u = DynamicalVariables(
+            name=["i_bus_a", "i_bus_b", "i_bus_c"],
+            component=f"{self.type}_{self.idx}",
+            type=["grid", "grid", "grid"],
+            tags=f"{self.tags[0]}"
+        )
+
+        # Outputs
+        y = DynamicalVariables(
+            name=["v_bus_a", "v_bus_b", "v_bus_c"],
+            component=f"{self.type}_{self.idx}",
+            tags=f"{self.tags[0]}")
+
+        return x, u, y

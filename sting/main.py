@@ -31,3 +31,11 @@ def run_ssm(case_dir=os.getcwd(), write_outputs=True, log=True):
         ssm.to_csv(path)
 
     return sys, ssm
+
+def run_emt(case_dir=os.getcwd()):
+
+    sys, ssm = run_ssm(case_dir)
+
+    sys.sim_emt()
+    
+    return sys

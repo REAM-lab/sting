@@ -153,36 +153,31 @@ class InfiniteSource:
         x = DynamicalVariables(
             name=["i_bus_a", "i_bus_b", "i_bus_c"],
             component=f"{self.type}_{self.idx}",
-            type="device",
+            tags=f"{self.tags[0]}"
         )
 
         # Inputs
-        u_d = DynamicalVariables(
-            name=["v_ref_d", "v_ref_q"],
+        u = DynamicalVariables(
+            name=["v_ref_d", "v_ref_q", "v_bus_a", "v_bus_b", "v_bus_c"],
             component=f"{self.type}_{self.idx}",
-            type="device",
-        )
-
-        u_g = DynamicalVariables(
-            name=["v_bus_a", "v_bus_b", "v_bus_c"],
-            component=f"{self.type}_{self.idx}",
-            type="grid",
+            type=["device", "device", "grid", "grid", "grid"],
+            tags=f"{self.tags[0]}"
         )
 
         # Outputs
         y = DynamicalVariables(
             name=["i_bus_a", "i_bus_b", "i_bus_c"],
             component=f"{self.type}_{self.idx}",
-            type="grid",
-        )
+            tags=f"{self.tags[0]}")
 
-        return x, (u_d, u_g), y
-    def _EMT_state_dynamics(self, t, x, ud, ug):
+        return x, u, y
+    
+    def _EMT_state_dynamics(self, t, x, u):
 
         i_bus_a, i_bus_b, i_bus_c = x[0:3]
 
-        v_int_d, v_int_q = ud
-        v_bus_a, v_bus_b, v_bus_c = ug
+        v_int_d, v_int_q = u[0:2]
+        v_bus_a, v_bus_b, v_bus_c = u[2:5]
 
         v_int_a, v_int_b, v_int_c = dq02abc(v_ref, 0, 0)
         v_bus_d, v_bus_q, _ = abc2dq0(v_bus_a, v_bus_b, v_bus_c, sys_angle)
@@ -197,9 +192,9 @@ class InfiniteSource:
 
         return [d_i_bus_a, d_i_bus_b, d_i_bus_c]
     
-    def _EMT_output_equations(self, t, x, ud, ug):
+    def _EMT_output_equations(self, t, x, u):
         
-        i_bus_a, i_bus_b, i_bus_c = x[0:3]
+        i_bus_a, i_bus_b, i_bus_c = x
 
         return [i_bus_a, i_bus_b, i_bus_c]
         
