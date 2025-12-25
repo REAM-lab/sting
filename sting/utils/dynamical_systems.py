@@ -24,7 +24,6 @@ class DynamicalVariables:
     component: any = None
     type: any = None
     init: any = None
-    tags: any = None # added for EMT
 
     def __post_init__(self):
         # Convert fields to NumPy arrays if they aren't already
@@ -48,10 +47,10 @@ class DynamicalVariables:
         self.component = helper(self.component, "")
         self.type = helper(self.type, "")
         self.init = helper(self.init, np.nan)
-        self.tags = helper(self.tags, "")  # added for EMT
+
 
         # Enforce consistent lengths
-        lengths = {len(self.name), len(self.component), len(self.type), len(self.init), len(self.tags)}  # added for EMT
+        lengths = {len(self.name), len(self.component), len(self.type), len(self.init)}  
         if len(lengths) != 1:
             raise ValueError("All fields must have the same length.")
 
@@ -70,7 +69,6 @@ class DynamicalVariables:
             component=np.concatenate([self.component, other.component]),
             type=np.concatenate([self.type, other.type]),
             init=np.concatenate([self.init, other.init]),
-            tags=np.concatenate([self.tags, other.tags]),  # added for EMT
         )
 
     def __len__(self):
@@ -88,7 +86,6 @@ class DynamicalVariables:
             component=self.component[idx],
             type=self.type[idx],
             init=self.init[idx],
-            tags=self.tags[idx],  # added for EMT
         )
 
     def to_list(self):

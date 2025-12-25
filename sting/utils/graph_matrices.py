@@ -91,12 +91,12 @@ def build_oriented_incidence_matrix(num_buses: int, branch_data: list):
     return or_inc
 
 
-def get_ccm_matrices(system):
+def get_ccm_matrices(system, attribute, dimI):
     """ """
-    gen_buses, gen_ssm = system.generators.select("bus_idx", "ssm")
-    from_bus, to_bus, br_ssm = system.branches.select("from_bus", "to_bus", "ssm")
+    gen_buses, gen_ssm = system.generators.select("bus_idx", attribute)
+    from_bus, to_bus, br_ssm = system.branches.select("from_bus", "to_bus", attribute)
 
-    sh_ssm, = system.shunts.select("ssm")
+    sh_ssm, = system.shunts.select(attribute)
 
     # Get the number of buses of the full system
     n_buses = len(system.bus)
@@ -136,18 +136,18 @@ def get_ccm_matrices(system):
     F13 = np.zeros((d_gen, y_br))
 
     F21 = np.zeros((g_gen, y_gen))
-    F22 = np.kron(gen_cx, np.eye(2))
+    F22 = np.kron(gen_cx, np.eye(dimI))
     F23 = np.zeros((g_gen, y_br))
 
-    F31 = np.kron(np.transpose(gen_cx), np.eye(2))
+    F31 = np.kron(np.transpose(gen_cx), np.eye(dimI))
     F32 = np.zeros((g_sh, y_sh))
-    F33 = np.kron(or_inc, np.eye(2))
+    F33 = np.kron(or_inc, np.eye(dimI))
 
     F41 = np.zeros((g_br, y_gen))
     # fmt: off
     F42 = np.kron( 0.5*(np.kron( np.transpose(un_inc) , np.array([[1], [1]]) )
                         + np.kron( np.transpose(or_inc) , np.array([[-1], [1]]) ) ) 
-                         , np.eye(2) )
+                         , np.eye(dimI) )
     F43 = np.zeros( (g_br, y_br) )
     
     F = np.block( [[F11, F12, F13],
@@ -170,11 +170,11 @@ def get_ccm_matrices(system):
     H = np.eye(y)
     L = np.zeros((y, d_gen))
 
-    T = build_ccm_permutation(system)
-    T = block_diag(T, np.eye(F.shape[0] - T.shape[0]))
+    #T = build_ccm_permutation(system)
+    #T = block_diag(T, np.eye(F.shape[0] - T.shape[0]))
 
-    F = T @ F
-    G = T @ G
+    #F = T @ F
+    #G = T @ G
 
     return F, G, H, L
 

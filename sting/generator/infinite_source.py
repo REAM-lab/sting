@@ -29,6 +29,11 @@ class InitialConditionsEMT(NamedTuple):
     i_bus_Q: float
     angle_ref: float
 
+class VariablesEMT(NamedTuple):
+    x: DynamicalVariables
+    u: DynamicalVariables
+    y: DynamicalVariables
+
 
 @dataclass(slots=True)
 class InfiniteSource:
@@ -49,6 +54,7 @@ class InfiniteSource:
     name: str = field(default_factory=str)
     type: str = "inf_src"
     tags: ClassVar[list[str]] = ["generator"]
+    var_emt: Optional[VariablesEMT] = None
 
     def _load_power_flow_solution(self, power_flow_instance):
         sol = power_flow_instance.generators.loc[f"{self.type}_{self.idx}"]
@@ -148,12 +154,11 @@ class InfiniteSource:
             angle_ref=angle_ref,
         )
 
-    def _EMT_variables(self):
+    def _define_variables_emt(self):
         # States
         x = DynamicalVariables(
             name=["i_bus_a", "i_bus_b", "i_bus_c"],
             component=f"{self.type}_{self.idx}",
-            tags=f"{self.tags[0]}"
         )
 
         # Inputs
@@ -161,40 +166,38 @@ class InfiniteSource:
             name=["v_ref_d", "v_ref_q", "v_bus_a", "v_bus_b", "v_bus_c"],
             component=f"{self.type}_{self.idx}",
             type=["device", "device", "grid", "grid", "grid"],
-            tags=f"{self.tags[0]}"
         )
 
         # Outputs
         y = DynamicalVariables(
             name=["i_bus_a", "i_bus_b", "i_bus_c"],
             component=f"{self.type}_{self.idx}",
-            tags=f"{self.tags[0]}")
+        )
 
-        return x, u, y
+        self.var_emt = VariablesEMT(x=x, u=u, y=y)
     
-    def _EMT_state_dynamics(self, t, x, u):
+    def _get_state_emt(self, t, x, ud, ug, angle_sys):
 
-        i_bus_a, i_bus_b, i_bus_c = x[0:3]
+        i_bus_a, i_bus_b, i_bus_c = x
 
-        v_int_d, v_int_q = u[0:2]
-        v_bus_a, v_bus_b, v_bus_c = u[2:5]
+        v_ref_d, v_ref_q = ud
+        v_bus_a, v_bus_b, v_bus_c = ug
 
-        v_int_a, v_int_b, v_int_c = dq02abc(v_ref, 0, 0)
-        v_bus_d, v_bus_q, _ = abc2dq0(v_bus_a, v_bus_b, v_bus_c, sys_angle)
+        v_ref_a, v_ref_b, v_ref_c = dq02abc(v_ref_d, v_ref_q, 0, angle_sys)
 
         r = self.r
         l = self.l
         wb = 2 * np.pi * self.fbase
 
-        d_i_bus_a = wb / l * (v_int_a - v_bus_a - r * i_bus_a)
-        d_i_bus_b = wb / l * (v_int_b - v_bus_b - r * i_bus_b)
-        d_i_bus_c = wb / l * (v_int_c - v_bus_c - r * i_bus_c)
+        d_i_bus_a = wb / l * (v_ref_a - v_bus_a - r * i_bus_a)
+        d_i_bus_b = wb / l * (v_ref_b - v_bus_b - r * i_bus_b)
+        d_i_bus_c = wb / l * (v_ref_c - v_bus_c - r * i_bus_c)
 
         return [d_i_bus_a, d_i_bus_b, d_i_bus_c]
     
-    def _EMT_output_equations(self, t, x, u):
+    def _get_output_emt(self, t, x_vals, ud, ug, angle_sys):
         
-        i_bus_a, i_bus_b, i_bus_c = x
+        i_bus_a, i_bus_b, i_bus_c = x_vals
 
         return [i_bus_a, i_bus_b, i_bus_c]
         

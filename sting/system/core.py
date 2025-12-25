@@ -6,6 +6,8 @@ import itertools
 from typing import get_type_hints
 from dataclasses import fields
 import numpy as np 
+from more_itertools import transpose
+from scipy.linalg import block_diag
 
 # Import source packages
 from sting import __logo__
@@ -14,7 +16,7 @@ from sting.line.core import decompose_lines
 from sting.utils import data_tools
 
 # from sting.shunt.core import combine_shunts
-from sting.utils.graph_matrices import get_ccm_matrices
+from sting.utils.graph_matrices import get_ccm_matrices, build_ccm_permutation
 from sting.utils.dynamical_systems import StateSpaceModel, DynamicalVariables
 import sting.system.selections as sl
 
@@ -261,7 +263,15 @@ class System:
         self.apply("_build_small_signal_model")
 
         # Construct the component connection matrices for the system model
-        self.connections = get_ccm_matrices(self)
+        F, G, H, L = get_ccm_matrices(self, "ssm", 2)
+
+        T = build_ccm_permutation(self)
+        T = block_diag(T, np.eye(F.shape[0] - T.shape[0]))
+
+        F = T @ F
+        G = T @ G
+
+        self.connections = F, G, H, L
 
     def interconnect(self):
         """
@@ -281,37 +291,84 @@ class System:
     # EMT simulation
     # ------------------------------------------------------------
 
+    def define_emt_variables(self):
+        """
+        Define EMT variables for all components in the system
+        """
+        self.apply("_define_variables_emt")
+
+        generators, = self.generators.select("var_emt")
+        shunts, = self.shunts.select("var_emt")
+        branches, = self.branches.select("var_emt")
+
+        variables_emt = itertools.chain(generators, shunts, branches)
+
+        fields = ["x", "u", "y"]
+        selection = [[getattr(c, f) for f in fields] for c in variables_emt]
+        stack = dict(zip(fields, transpose(selection)))
+
+        u = sum(stack["u"], DynamicalVariables(name=[]))
+        y = sum(stack["y"], DynamicalVariables(name=[]))
+        x = sum(stack["x"], DynamicalVariables(name=[]))
+
+        ud = u[u.type == "device"]
+        ug = u[u.type == "grid"]
+
+        u = ud + ug
+        unique_components = np.unique(x.component)
+        components_emt = [list(item.rpartition('_')[::2]) for item in unique_components]
+
+        for c in components_emt:
+            c.append([i for i, var in enumerate(x) if var.component == f"{c[0]}_{c[1]}"])
+            c.append([(u.component == f"{c[0]}_{c[1]}") & (u.type == "grid")])
+        # [['inf_src', '1', [...]], ['inf_src', '2', [...]], ['pa_rc', '1', [...]], ['pa_rc', '2', [...]], ['se_rl', '1', [...]]]
+
+        self.components_emt = components_emt
+        self.x_emt = x
+        self.u_emt = u
+        self.y_emt = y
+
+        self.ccm_matrices = get_ccm_matrices(self, "var_emt", 3)
+
+
     def sim_emt(self):
         """
         Simulate the EMT dynamics of the system using scipy.integrate.solve_ivp
         """
         
-        x_var = []
-        u_var = []
-        y_var = []
-        for component in self:
-                if hasattr(component, "_EMT_variables"):
-                    x, u, y = getattr(component, "_EMT_variables")()
-
-                    x_var.extend([*x])
-                    u_var.extend([*u])
-                    y_var.extend([*y])
+        F, G, H, L = self.ccm_matrices
         
-        order = ['generator', 'shunt', 'branch']
+        def system_ode(t, x, ud):
 
-        x_var = sorted(x_var, key=lambda s: order.index(s.tags))
-        x_var = list(enumerate(x_var))
+            angle_sys = x[-1]  # last state is system angle
+
+            y_stack = []
+
+            for component_type, component_idx, x_idx, _ in self.components_emt:
+                component = getattr(self, component_type)[int(component_idx)-1]
+                x_vals= x[x_idx]
+                y = getattr(component, "_get_output_emt")(t, x_vals, ud)
+                y_stack.extend(y)
+
+            y_stack = np.array(y_stack).flatten()
+
+            ustack = F @ y_stack 
+
+            dx = []
         
-        x = np.array(range(len(x_var))) # ex
-        t = 0
-        y_stack = []
-        for component in self:
-                if hasattr(component, "_EMT_output_equations"):
-                    idx = [i for i, var in x_var if var.component == f"{component.type}_{component.idx}"]
-                    x_comp = x[idx]
-                    y = getattr(component, "_EMT_output_equations")(t, x_comp, 0)
-                    y_stack.extend(y)
+            for component_type, component_idx, x_idx, ug_idx in self.components_emt:
+                component = getattr(self, component_type)[int(component_idx)-1]
+                x_vals= x[x_idx]
+                ud_vals = ud[f"{component}_{component_idx}"](t)
+                ug_vals = ustack[ug_idx]
+                dx_comp = getattr(component, "_get_derivative_state_emt")(t, x_vals, ud_vals, ug_vals, angle_sys)
+                dx.extend(dx_comp)
 
+            d_angle_sys = 2 * np.pi * 60 # rad/s
+            dx.append(d_angle_sys)
+
+            return np.array(dx)
+        
         """
         def system_ode(t, x, u):
 

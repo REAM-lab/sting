@@ -36,6 +36,9 @@ def run_emt(case_dir=os.getcwd()):
 
     sys, ssm = run_ssm(case_dir)
 
+    sys.define_emt_variables()
+    
     sys.sim_emt()
+
     
     return sys

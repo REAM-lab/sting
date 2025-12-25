@@ -19,6 +19,10 @@ class InitialConditionsEMT(NamedTuple):
     i_bus_D: float
     i_bus_Q: float
 
+class VariablesEMT(NamedTuple):
+    x: DynamicalVariables
+    u: DynamicalVariables
+    y: DynamicalVariables
 
 @dataclass
 class ShuntParallelRC:
@@ -35,6 +39,7 @@ class ShuntParallelRC:
     name: str = field(default_factory=str)
     type: str = "pa_rc"
     tags: ClassVar[list[str]] = ["shunt"]
+    var_emt: Optional[VariablesEMT] = None
 
     @property
     def g(self):
@@ -102,12 +107,11 @@ class ShuntParallelRC:
 
         self.ssm = StateSpaceModel(A=A, B=B, C=C, D=D, u=u, y=y, x=x)
 
-    def _EMT_variables(self):
+    def _define_variables_emt(self):
         # States
         x = DynamicalVariables(
             name=["v_bus_a", "v_bus_b", "v_bus_c"],
             component=f"{self.type}_{self.idx}",
-            tags=f"{self.tags[0]}"
         )
 
         # Inputs
@@ -115,13 +119,31 @@ class ShuntParallelRC:
             name=["i_bus_a", "i_bus_b", "i_bus_c"],
             component=f"{self.type}_{self.idx}",
             type=["grid", "grid", "grid"],
-            tags=f"{self.tags[0]}"
         )
 
         # Outputs
         y = DynamicalVariables(
             name=["v_bus_a", "v_bus_b", "v_bus_c"],
             component=f"{self.type}_{self.idx}",
-            tags=f"{self.tags[0]}")
+        )
 
-        return x, u, y
+        self.var_emt = VariablesEMT(x=x, u=u, y=y)
+
+    def _get_state_emt(self, t, x, ud, ug, angle_sys):
+
+        v_bus_a, v_bus_b, v_bus_c = x
+
+        r = self.r
+        c = self.c
+        wb = 2 * np.pi * self.fbase
+
+        d_v_bus_a = wb / c * (v_ref_a - v_bus_a - r * i_bus_a)
+        d_v_bus_b = wb / c * (v_ref_b - v_bus_b - r * i_bus_b)
+        d_v_bus_c = wb / c * (v_ref_c - v_bus_c - r * i_bus_c)
+
+        return [d_i_bus_a, d_i_bus_b, d_i_bus_c]
+    
+    def _get_output_emt(self, t, x_vals, ud):
+        v_bus_a, v_bus_b, v_bus_c = x_vals
+
+        return [v_bus_a, v_bus_b, v_bus_c]

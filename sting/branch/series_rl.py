@@ -25,6 +25,10 @@ class InitialConditionsEMT(NamedTuple):
     i_br_D: float
     i_br_Q: float
 
+class VariablesEMT(NamedTuple):
+    x: DynamicalVariables
+    u: DynamicalVariables
+    y: DynamicalVariables
 
 @dataclass(slots=True)
 class BranchSeriesRL:
@@ -42,6 +46,7 @@ class BranchSeriesRL:
     emt_init: Optional[InitialConditionsEMT] = None
     type: str = "se_rl"
     ssm: Optional[StateSpaceModel] = None
+    var_emt: Optional[VariablesEMT] = None
 
 
     def _load_power_flow_solution(self, power_flow_instance):
@@ -120,12 +125,11 @@ class BranchSeriesRL:
 
         self.ssm = StateSpaceModel(A=A, B=B, C=C, D=D, u=u, y=y, x=x)
 
-    def _EMT_variables(self):
+    def _define_variables_emt(self):
         # States
         x = DynamicalVariables(
             name=["i_bus_a", "i_bus_b", "i_bus_c"],
             component=f"{self.type}_{self.idx}",
-            tags=f"{self.tags[0]}"
         )
 
         # Inputs
@@ -134,19 +138,18 @@ class BranchSeriesRL:
                   "v_to_bus_a", "v_to_bus_b", "v_to_bus_c"],
             component=f"{self.type}_{self.idx}",
             type=["grid", "grid", "grid", "grid", "grid", "grid"],
-            tags=f"{self.tags[0]}"
         )
 
         # Outputs
         y = DynamicalVariables(
             name=["i_bus_a", "i_bus_b", "i_bus_c"],
             component=f"{self.type}_{self.idx}",
-            tags=f"{self.tags[0]}")
+        )
 
-        return x, u, y
+        self.var_emt = VariablesEMT(x=x, u=u, y=y)
     
-    def _EMT_output_equations(self, t, x, u):
+    def _get_output_emt(self, t, x_vals, u):
         
-        i_bus_a, i_bus_b, i_bus_c = x
+        i_bus_a, i_bus_b, i_bus_c = x_vals
 
         return [i_bus_a, i_bus_b, i_bus_c]
