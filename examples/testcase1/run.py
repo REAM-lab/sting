@@ -17,12 +17,14 @@ import os
 import matlab.engine
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 # Import sting package
 from sting import main
 
 # Specify path of the case study directory
-case_dir = os.path.join(os.getcwd(), "examples", "testcase1")
+case_dir = Path(__file__).resolve().parent
+#case_dir = os.path.join(os.getcwd(), "examples", "testcase1")
 
 # Construct system and small-signal model
 sys, ssm = main.run_ssm(case_dir)
@@ -32,7 +34,13 @@ sys, ssm = main.run_ssm(case_dir)
 # We are testing the "sim" functionality in STING.
 tps = np.arange(0, 1.001, 0.001)
 def u_func(t):
-    return np.zeros((ssm.u.n_device,))
+    v_d_ref1 = 0.1 if t>= 0.5 else 0
+    v_q_ref1 = 0
+    v_d_ref2 = 0
+    v_q_ref2 = 0 
+    
+    return np.array([v_d_ref1, v_q_ref1, v_d_ref2, v_q_ref2])
+#    return np.zeros((ssm.u.n_device,))
 
 # Simulate small-signal system
 dx = ssm.sim(tps, u_func)
@@ -45,6 +53,7 @@ x_ssm = dx + np.atleast_2d(ssm.x.init).T
 np.savetxt(os.path.join(case_dir, 'outputs', 'small_signal_model', 'sim_ssm.csv'), 
                         x_ssm.T, delimiter=',', fmt='%f')
 
+"""
 # -------------------------------------------------------------
 # The rest of this code can be commented. The purpose is to run 
 # EMT simulation in Simulink.
@@ -69,3 +78,4 @@ x_emt = np.loadtxt(filepath, delimiter=',').T
 print(np.allclose(x_ssm, x_emt,  rtol=1e-05, atol=1e-04))
 
 print('ok')
+"""

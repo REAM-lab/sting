@@ -4,6 +4,7 @@ import logging
 from sting.system.core import System
 from sting.utils.dynamical_systems import modal_analisis
 from sting.utils.power_flow import PowerFlow
+from sting.simulation_emt import SimulationEMT
 
 
 def run_ssm(case_dir=os.getcwd(), write_outputs=True, log=True):
@@ -40,4 +41,12 @@ def run_emt(t_max, inputs, case_dir=os.getcwd()):
     
     solution = sys.sim_emt(t_max, inputs)
 
-    return solution 
+    return solution, sys
+
+def run_emt2(t_max, inputs, case_dir=os.getcwd()):
+
+    sys, ssm = run_ssm(case_dir)
+
+    emt_sc = SimulationEMT(system=sys)
+
+    emt_sc.define_variables()

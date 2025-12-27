@@ -161,7 +161,7 @@ class InfiniteSource:
 
         # Initial conditions
         i_bus_d, i_bus_q = self.emt_init.i_bus_d, self.emt_init.i_bus_q
-        angle_ref = self.emt_init.angle_ref
+        angle_ref = self.emt_init.angle_ref * np.pi / 180
         i_bus_a, i_bus_b, i_bus_c = dq02abc(i_bus_d, i_bus_q, 0, angle_ref)
 
         
@@ -178,7 +178,7 @@ class InfiniteSource:
         # Initial conditions
         v_ref_d, v_ref_q = self.emt_init.v_int_d, self.emt_init.v_int_q
         v_bus_D, v_bus_Q = self.emt_init.v_bus_D, self.emt_init.v_bus_Q
-        v_bus_a, v_bus_b, v_bus_c = dq02abc(v_bus_D, v_bus_Q, 0, angle_ref)
+        v_bus_a, v_bus_b, v_bus_c = dq02abc(v_bus_D, v_bus_Q, 0, 0)
 
         u = DynamicalVariables(
             name=["v_ref_d", "v_ref_q", "v_bus_a", "v_bus_b", "v_bus_c"],
@@ -205,7 +205,8 @@ class InfiniteSource:
 
         v_bus_a, v_bus_b, v_bus_c = ug
 
-        v_ref_a, v_ref_b, v_ref_c = dq02abc(v_ref_d, v_ref_q, 0, angle_sys)
+        angle_ref = self.emt_init.angle_ref * np.pi / 180
+        v_ref_a, v_ref_b, v_ref_c = dq02abc(v_ref_d, v_ref_q, 0, angle_sys + angle_ref)
 
         r = self.r
         l = self.l

@@ -29,5 +29,7 @@ setup(
         "tabulate",
         "matplotlib",
         "matlabengine==25.1.2",
+        "plotly",
+        "jupyter"
     ],
 )

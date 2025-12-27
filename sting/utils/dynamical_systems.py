@@ -24,6 +24,7 @@ class DynamicalVariables:
     component: any = None
     type: any = None
     init: any = None
+    value_t: float = None
 
     def __post_init__(self):
         # Convert fields to NumPy arrays if they aren't already
@@ -91,6 +92,7 @@ class DynamicalVariables:
     def to_list(self):
         # Return unique a tuple uniquely identifying each variable
         return list(zip(self.component.tolist(), self.name.tolist()))
+    
 
 
 @dataclass(slots=True)

@@ -296,7 +296,7 @@ class System:
         """
         Define EMT variables for all components in the system
         """
-        self.apply("_define_variables_emt")
+        self.apply("define_variables_emt")
 
         generators, = self.generators.select("var_emt")
         shunts, = self.shunts.select("var_emt")
