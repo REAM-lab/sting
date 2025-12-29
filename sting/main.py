@@ -49,8 +49,6 @@ def run_emt2(t_max, inputs, case_dir=os.getcwd()):
 
     emt_sc = SimulationEMT(system=sys)
 
-    emt_sc.define_variables()
-
     solution = emt_sc.sim(t_max, inputs)
 
     return solution, sys

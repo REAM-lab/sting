@@ -6,6 +6,7 @@ import itertools
 from more_itertools import transpose
 from typing import NamedTuple, Optional, ClassVar
 
+
 # Import sting code
 from sting.system.core import System
 import sting.system.selections as sl
@@ -17,23 +18,51 @@ class VariablesEMT(NamedTuple):
     u: DynamicalVariables
     y: DynamicalVariables
 
+class ComponentEMT(NamedTuple):
+    type: str
+    idx: int
 
 @dataclass(slots=True)
 class SimulationEMT:
     system: System
-    variables_emt: VariablesEMT = field(init=False)
+    components: list[ComponentEMT] = field(init=False)
+    variables: VariablesEMT = field(init=False)
     ccm_abc_matrices: list[np.ndarray] = field(init=False)
 
+    def __post_init__(self):
+        self.get_components()
+        self.get_variables()
+        self.assign_idx()
+        self.get_ccm_matrices()
+
+    def get_components(self):
+
+        components = []
+        for component in self.system:
+            if (    hasattr(component, "idx_variables_emt") 
+                and hasattr(component, "define_variables_emt")
+                and hasattr(component, "get_derivative_state_emt")
+                and hasattr(component, "get_output_emt")
+                ):
+                components.append(ComponentEMT(type = component.type, idx = component.idx))
+        
+        self.components = components
     
-    def define_variables(self):
+
+    def apply(self, method: str, *args):
+        for c in self.components:
+               component = getattr(self.system, c.type)[c.idx-1]
+               getattr(component, method)(*args)
+
+    def get_variables(self):
         """
         Define EMT variables for all components in the system
         """
-        self.system.apply("_define_variables_emt")
+        self.apply("define_variables_emt")
 
-        generators, = self.system.generators.select("var_emt")
-        shunts, = self.system.shunts.select("var_emt")
-        branches, = self.system.branches.select("var_emt")
+        generators, = self.system.generators.select("variables_emt")
+        shunts, = self.system.shunts.select("variables_emt")
+        branches, = self.system.branches.select("variables_emt")
 
         variables_emt = itertools.chain(generators, shunts, branches)
 
@@ -49,67 +78,36 @@ class SimulationEMT:
         ug = u[u.type == "grid"]
         u = ud + ug
 
-        self.variables_emt = VariablesEMT(x=x, u=u, y=y)
+        self.variables = VariablesEMT(x=x, u=u, y=y)
     
-    def assign_idx_solveivp(self):
+    def assign_idx(self):
 
-        x, u, y = self.variables_emt
-        for component in self.system:
-            if hasattr(component, "idx_solve_ivp"):
-                id = f"{component.type}_{component.idx}"
-                component.idx_solve_ivp = {"x": x.component == id, 
-                                           "u": u.component == id,
-                                           "y": y.component == id}
-
-        #components = np.unique(x.component).tolist()
-        #components = [[c, c.rpartition('_')[0], int(c.rpartition('_')[2])] for c in components]
-        #for c  in components:
-        #    c.append([x.component == c[0]])
-        #    c.append((u.component == c[0]))
-
-
-        # [['inf_src', '1', [...]], ['inf_src', '2', [...]], ['pa_rc', '1', [...]], ['pa_rc', '2', [...]], ['se_rl', '1', [...]]]
-
-        #self.components = components
-        #self.x = x
-        #self.u = u
-        #self.y = y
-
-        self.ccm_abc_matrices = get_ccm_matrices(self.system, "var_emt", 3)
+        x, u, y = self.variables
+        for c in self.components:
+                component = getattr(self.system, c.type)[c.idx-1]
+                id = f"{c.type}_{c.idx}"
+                setattr(component, "idx_variables_emt", {   "x": x.component == id, 
+                                                            "u": u.component == id,
+                                                            "y": y.component == id  })
+                                       
+    def get_ccm_matrices(self):
+        
+        self.ccm_abc_matrices = get_ccm_matrices(self.system, "variables_emt", 3)
     
-    def update_components_variables(self, vector: np.ndarray, variable: str):
 
-        for component in self.system:
-            if hasattr(component, "idx_solve_ivp"):
-                v = getattr(getattr(component, "var_emt"), variable)
-                setattr(v, "value", vector[component.idx_solve_ivp[variable]])
+    def get_input_vector(self, u_signals, t):
 
+        d_vars = self.variables.u[self.variables.u.type == "device"]
 
-    def get_stack_vector(self, variable: str, method: str, *args):
+        ud = [u_signals[component][name](t) if u_signals.get(component, {}).get(name) else 0 for (component, name) in zip(d_vars.component, d_vars.name)]
+        ud = np.array(ud) + d_vars.init
 
-        length =  len(getattr(self.variables_emt, variable))
-        vector = np.full(length, np.nan, dtype=float)
+        g_vars = self.variables.u[self.variables.u.type == "grid"]
+        ug = np.full(len(g_vars), np.nan, dtype=float)
 
-        for component in self.system:
-            if hasattr(component, "idx_solve_ivp"):
-                idx = component.idx_solve_ivp[variable]
-                v = getattr(component, method, *args)
-                vector[idx] = v
+        u = np.hstack((ud, ug))
 
-        return vector
-        #for _, component_type, idx, x_idx, u_idx in self.components:
-            # Get component
-        #    component = getattr(self.system, component_type)[idx-1]
-        #    variables = getattr(component, "var_emt")
-
-            # Update state values
-        #    x_component = getattr(variables, "x")
-        #    setattr(x_component, "value", x[x_idx])
-
-
-
-
-
+        return u, ud
 
     def sim(self, t_max, inputs):
         """
@@ -117,86 +115,54 @@ class SimulationEMT:
         """
         
         F, G, H, L = self.ccm_abc_matrices
+        x_len = len(self.variables.x)
+        y_len = len(self.variables.y)
 
-        
         def system_ode(t, x, u_signals):
 
-            angle_sys = x[-1]  # last state is system angle
+            u, ud = self.get_input_vector(u_signals, t)
 
-            ud = self.u[self.u.type == "device"]
-            ud_vals = [u_signals[component][name](t) if u_signals.get(component, {}).get(name) else 0 for (component, name) in zip(ud.component, ud.name)]
-            ud_vals = np.array(ud_vals) + ud.init
+            y_stack = np.full(y_len, np.nan, dtype=float)
 
-            ug = self.u[self.u.type == "grid"]
-            ug_vals = np.zeros_like(len(ug))
-
-            u = np.vstack((ud_vals, ug_vals))
-
-            y_stack = []
-
-            self.update_components_variables(x, "x")
-            self.update_components_variables(u, "u")
-            y_stack = self.get_stack_vector("y", "_get_output_emt", t)
-
-            ustack = F @ y_stack + G @ ud_vals
-
-            self.update_components_variables(ustack, "u")
-            dx = self.get_stack_vector("x", "_get_derivative_state_emt", t, angle_sys)
-
-            d_angle_sys = 2 * np.pi * 60 # rad/s
-            dx = np.append(dx, [d_angle_sys])
-
-            return dx
-
-            #for _, component_type, idx, x_idx, u_idx in self.components:
-                # Get component
-            #    component = getattr(self.system, component_type)[idx-1]
-            #    variables = getattr(component, "var_emt")
+            for c in self.components:
+                component = getattr(self.system, c.type)[c.idx-1]
+                variables = getattr(component, "variables_emt")
+                idx = getattr(component, "idx_variables_emt")
                 
                 # Update state values
-            #    x_component = getattr(variables, "x")
-            #    setattr(x_component, "value", x[x_idx])
-
-                # Update input values
-            #    u_component = getattr(variables, "u")
-            #    setattr(u_component, "value", u[u_idx])
-
-                # Get output values
-            #    y = getattr(component, "_get_output_emt")(t)
-            #    y_stack.extend(y)
-
-            #y_stack = np.array(y_stack).flatten()
-
-            ustack = F @ y_stack + G @ ud_vals
-
-            dx = []
-        
-            for _, component_type, idx, x_idx, ug_idx in self.components:
-                # Get component
-                component = getattr(self.system, component_type)[idx-1]
-                variables = getattr(component, "var_emt")
+                x_component = getattr(variables, "x")
+                setattr(x_component, "value", x[idx["x"]])
 
                 # Update input values
                 u_component = getattr(variables, "u")
-                setattr(u_component, "value", ustack[u_idx])
+                setattr(u_component, "value", u[idx["u"]])
+
+                # Get output values
+                y = getattr(component, "get_output_emt")()
+                y_stack[idx["y"]] = y
+
+            ustack = F @ y_stack + G @ ud
+
+            dx_stack =  np.full(x_len, np.nan, dtype=float)
+
+            for c in self.components:
+                component = getattr(self.system, c.type)[c.idx-1]
+                variables = getattr(component, "variables_emt")
+                idx = getattr(component, "idx_variables_emt")
+
+                # Update input values
+                u_component = getattr(variables, "u")
+                setattr(u_component, "value", ustack[idx["u"]])
 
                 # Get derivative of state
-                dx_comp = getattr(component, "_get_derivative_state_emt")(t, angle_sys)
-                dx.extend(dx_comp)
+                dx = getattr(component, "get_derivative_state_emt")()
+                dx_stack[idx["x"]] = dx
 
-            d_angle_sys = 2 * np.pi * 60 # rad/s
-            dx.append(d_angle_sys)
-
-            dx = np.array(dx).flatten()
-
-            return dx
+            return dx_stack
         
-        x_init = self.x.init
-        x_init = np.append(x_init, [0.0])  # initial system angle
-
         solution = solve_ivp(system_ode, 
                         [0, t_max], # timeperiod 
-                        x_init, # initial conditions
+                        self.variables.x.init, # initial conditions
                         dense_output=True,  
                         args=(inputs, ),
                         method='Radau', 

@@ -40,8 +40,8 @@ class ShuntParallelRC:
     name: str = field(default_factory=str)
     type: str = "pa_rc"
     tags: ClassVar[list[str]] = ["shunt"]
-    var_emt: Optional[VariablesEMT] = None
-    idx_solve_ivp: Optional[dict] = None
+    variables_emt: Optional[VariablesEMT] = None
+    idx_variables_emt: Optional[dict] = None
 
     @property
     def g(self):
@@ -109,13 +109,12 @@ class ShuntParallelRC:
 
         self.ssm = StateSpaceModel(A=A, B=B, C=C, D=D, u=u, y=y, x=x)
 
-    def _define_variables_emt(self, **kwargs):
+    def define_variables_emt(self):
 
         # States
         # ------
-        angle_init = kwargs.get("angle_init", 0.0)
         v_bus_D, v_bus_Q = self.emt_init.v_bus_D, self.emt_init.v_bus_Q
-        v_bus_a, v_bus_b, v_bus_c = dq02abc(v_bus_D, v_bus_Q, 0, angle_init)
+        v_bus_a, v_bus_b, v_bus_c = dq02abc(v_bus_D, v_bus_Q, 0, 0)
 
         x = DynamicalVariables(
             name=["v_bus_a", "v_bus_b", "v_bus_c"],
@@ -136,25 +135,30 @@ class ShuntParallelRC:
             component=f"{self.type}_{self.idx}",
         )
 
-        self.var_emt = VariablesEMT(x=x, u=u, y=y)
+        self.variables_emt = VariablesEMT(x=x, u=u, y=y)
 
-    def _get_derivative_state_emt(self, t, x, ud, ug, angle_sys):
+    def get_derivative_state_emt(self):
 
-        v_bus_a, v_bus_b, v_bus_c = x
+        # Get state values
+        v_bus_a, v_bus_b, v_bus_c = self.variables_emt.x.value
 
+        # Get input values
+        i_bus_a, i_bus_b, i_bus_c = self.variables_emt.u.value
+
+        # Get parameters
         g = self.g
         b = self.b
         wb = 2 * np.pi * self.fbase
 
-        i_bus_a, i_bus_b, i_bus_c = ug
-
+        # Differential equations
         d_v_bus_a = wb / b * (- g * v_bus_a + i_bus_a)
         d_v_bus_b = wb / b * (- g * v_bus_b + i_bus_b)
         d_v_bus_c = wb / b * (- g * v_bus_c + i_bus_c)
 
         return [d_v_bus_a, d_v_bus_b, d_v_bus_c]
     
-    def _get_output_emt(self, t, x_vals, ud):
-        v_bus_a, v_bus_b, v_bus_c = x_vals
+    def get_output_emt(self):
+
+        v_bus_a, v_bus_b, v_bus_c = self.variables_emt.x.value
 
         return [v_bus_a, v_bus_b, v_bus_c]

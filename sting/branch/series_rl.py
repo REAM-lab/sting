@@ -47,8 +47,8 @@ class BranchSeriesRL:
     emt_init: Optional[InitialConditionsEMT] = None
     type: str = "se_rl"
     ssm: Optional[StateSpaceModel] = None
-    var_emt: Optional[VariablesEMT] = None
-    idx_solve_ivp: Optional[dict] = None
+    variables_emt: Optional[VariablesEMT] = None
+    idx_variables_emt: Optional[dict] = None
 
 
     def _load_power_flow_solution(self, power_flow_instance):
@@ -127,13 +127,12 @@ class BranchSeriesRL:
 
         self.ssm = StateSpaceModel(A=A, B=B, C=C, D=D, u=u, y=y, x=x)
 
-    def _define_variables_emt(self, **kwargs):
+    def define_variables_emt(self):
 
         # States
         # ------
-        angle_init = kwargs.get("angle_init", 0.0)
         i_br_D, i_br_Q = self.emt_init.i_br_D, self.emt_init.i_br_Q
-        i_br_a, i_br_b, i_br_c = dq02abc(i_br_D, i_br_Q, 0, angle_init)
+        i_br_a, i_br_b, i_br_c = dq02abc(i_br_D, i_br_Q, 0, 0)
 
         x = DynamicalVariables(
             name=["i_br_a", "i_br_b", "i_br_c"],
@@ -155,18 +154,22 @@ class BranchSeriesRL:
             component=f"{self.type}_{self.idx}",
         )
 
-        self.var_emt = VariablesEMT(x=x, u=u, y=y)
+        self.variables_emt = VariablesEMT(x=x, u=u, y=y)
 
-    def _get_derivative_state_emt(self, t, x, ud, ug, angle_sys):
+    def get_derivative_state_emt(self):
 
-        i_br_a, i_br_b, i_br_c = x
+        # Get state values
+        i_br_a, i_br_b, i_br_c = self.variables_emt.x.value
 
-        v_from_bus_a, v_from_bus_b, v_from_bus_c, v_to_bus_a, v_to_bus_b, v_to_bus_c = ug
+        # Get input values
+        v_from_bus_a, v_from_bus_b, v_from_bus_c, v_to_bus_a, v_to_bus_b, v_to_bus_c = self.variables_emt.u.value
 
+        # Get parameters
         r = self.r
         l = self.l
         wb = 2 * np.pi * self.fbase
 
+        # Differential equations
         d_i_br_a = wb / l * (v_from_bus_a - v_to_bus_a - r * i_br_a)
         d_i_br_b = wb / l * (v_from_bus_b - v_to_bus_b - r * i_br_b)
         d_i_br_c = wb / l * (v_from_bus_c - v_to_bus_c - r * i_br_c)
@@ -174,9 +177,8 @@ class BranchSeriesRL:
         return [d_i_br_a, d_i_br_b, d_i_br_c]
         
 
-    
-    def _get_output_emt(self, t, x_vals, ud):
-        
-        i_br_a, i_br_b, i_br_c = x_vals
+    def get_output_emt(self):
+
+        i_br_a, i_br_b, i_br_c = self.variables_emt.x.value
 
         return [i_br_a, i_br_b, i_br_c]

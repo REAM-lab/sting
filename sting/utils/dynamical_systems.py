@@ -24,7 +24,7 @@ class DynamicalVariables:
     component: any = None
     type: any = None
     init: any = None
-    value_t: float = None
+    value: any = None
 
     def __post_init__(self):
         # Convert fields to NumPy arrays if they aren't already

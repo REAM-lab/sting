@@ -54,8 +54,8 @@ class InfiniteSource:
     name: str = field(default_factory=str)
     type: str = "inf_src"
     tags: ClassVar[list[str]] = ["generator"]
-    var_emt: Optional[VariablesEMT] = None
-    idx_solve_ivp: Optional[dict] = None
+    variables_emt: Optional[VariablesEMT] = None
+    idx_variables_emt: Optional[dict] = None
 
     def _load_power_flow_solution(self, power_flow_instance):
         sol = power_flow_instance.generators.loc[f"{self.type}_{self.idx}"]
@@ -155,7 +155,7 @@ class InfiniteSource:
             angle_ref=angle_ref,
         )
 
-    def _define_variables_emt(self):
+    def define_variables_emt(self):
         
         # States
         # ------
@@ -167,10 +167,9 @@ class InfiniteSource:
 
         
         x = DynamicalVariables(
-            name=["i_bus_a", "i_bus_b", "i_bus_c"],
+            name=["i_bus_a", "i_bus_b", "i_bus_c", "angle_ref"],
             component=f"{self.type}_{self.idx}",
-            init=[i_bus_a, i_bus_b, i_bus_c],
-            
+            init=[i_bus_a, i_bus_b, i_bus_c, angle_ref],
         )
 
         # Inputs
@@ -194,34 +193,34 @@ class InfiniteSource:
             component=f"{self.type}_{self.idx}",
         )
 
-        self.var_emt = VariablesEMT(x=x, u=u, y=y)
+        self.variables_emt = VariablesEMT(x=x, u=u, y=y)
     
-    def _get_derivative_state_emt(self, t, x, ud, ug, angle_sys):
+    def get_derivative_state_emt(self):
 
-        i_bus_a, i_bus_b, i_bus_c = x
+        # Get state values
+        i_bus_a, i_bus_b, i_bus_c, angle_ref = self.variables_emt.x.value
 
-        u_var = self.var_emt.u
-        v_ref_d = ud['v_ref_d'](t) + u_var[ u_var.name == 'v_ref_d' ].init[0]
-        v_ref_q = 0
+        # Get input values
+        v_ref_d, v_ref_q, v_bus_a, v_bus_b, v_bus_c = self.variables_emt.u.value
 
-        v_bus_a, v_bus_b, v_bus_c = ug
+        v_ref_a, v_ref_b, v_ref_c = dq02abc(v_ref_d, v_ref_q, 0, angle_ref)
 
-        angle_ref = self.emt_init.angle_ref * np.pi / 180
-        v_ref_a, v_ref_b, v_ref_c = dq02abc(v_ref_d, v_ref_q, 0, angle_sys + angle_ref)
-
+        # Get parameters
         r = self.r
         l = self.l
         wb = 2 * np.pi * self.fbase
 
+        # Differential equations
         d_i_bus_a = wb / l * (v_ref_a - v_bus_a - r * i_bus_a)
         d_i_bus_b = wb / l * (v_ref_b - v_bus_b - r * i_bus_b)
         d_i_bus_c = wb / l * (v_ref_c - v_bus_c - r * i_bus_c)
+        d_angle_ref = wb 
 
-        return [d_i_bus_a, d_i_bus_b, d_i_bus_c]
+        return [d_i_bus_a, d_i_bus_b, d_i_bus_c, d_angle_ref]
     
-    def _get_output_emt(self, t, x_vals, ud):
+    def get_output_emt(self):
         
-        i_bus_a, i_bus_b, i_bus_c = x_vals
+        i_bus_a, i_bus_b, i_bus_c, angle_ref = self.variables_emt.x.value
 
         return [i_bus_a, i_bus_b, i_bus_c]
         

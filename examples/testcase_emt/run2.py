@@ -28,3 +28,5 @@ inputs = {'inf_src_1': {'v_ref_d': step1},
 t_max = 1.0
 
 main.run_emt2(t_max, inputs, case_dir =case_dir)
+
+print("Simulation completed.")
