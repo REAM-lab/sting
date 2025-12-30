@@ -282,23 +282,37 @@ class GFMIc:
     
         components = [pc_controller, voltage_mag_controller, lcl_filter]
         connections = [Fccm, Gccm, Hccm, Lccm]
-        
-        # Generate small-signal model
-        ssm = StateSpaceModel.from_interconnected(components, connections)
 
-        # Inputs and outputs
-        ssm.u = DynamicalVariables(
+        u = DynamicalVariables(
                                     name=["p_ref", "q_ref", "v_ref", "v_bus_D", "v_bus_Q"],
                                     component=f"{self.type}_{self.idx}",
                                     type=["device", "device", "device", "grid", "grid"],
                                     init=[p_ref, q_ref, v_ref, v_bus_D, v_bus_Q]
                                     )
-        
+
         i_bus_D, i_bus_Q = self.emt_init.i_bus_D, self.emt_init.i_bus_Q
-        ssm.y = DynamicalVariables(
+        y = DynamicalVariables(
                                     name=["i_bus_D", "i_bus_Q"],
                                     component=f"{self.type}_{self.idx}",
                                     init=[i_bus_D, i_bus_Q]
                                     )
+
+        # Generate small-signal model
+        ssm = StateSpaceModel.from_interconnected2(components, connections, u, y)
+
+        # Inputs and outputs
+        #ssm.u = DynamicalVariables(
+        #                            name=["p_ref", "q_ref", "v_ref", "v_bus_D", "v_bus_Q"],
+        #                            component=f"{self.type}_{self.idx}",
+        #                            type=["device", "device", "device", "grid", "grid"],
+        #                            init=[p_ref, q_ref, v_ref, v_bus_D, v_bus_Q]
+        #                            )
+        
+        #i_bus_D, i_bus_Q = self.emt_init.i_bus_D, self.emt_init.i_bus_Q
+        #ssm.y = DynamicalVariables(
+        #                            name=["i_bus_D", "i_bus_Q"],
+        #                            component=f"{self.type}_{self.idx}",
+        #                            init=[i_bus_D, i_bus_Q]
+        #                            )
 
         self.ssm = ssm

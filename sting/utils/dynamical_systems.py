@@ -14,10 +14,11 @@ class DynamicalVariables:
     A lightweight class used to hold data about the variables
     of a dynamical system, such as inputs, outputs, and states.
 
-    name: Name of the variable (e.g., i_d, v_q, etc.)
-    component: Unique name of the component associated with each state.
-    type: Variable type (i.e, 'device' or 'grid')
-    init: Initial conditions
+    #### Attributes:
+    - name: Name of the variable (e.g., i_d, v_q, etc.)
+    - component: Unique name of the component associated with each state.
+    - type: Variable type (i.e, 'device' or 'grid')
+    - init: Initial conditions
     """
 
     name: any
@@ -58,10 +59,16 @@ class DynamicalVariables:
 
     @property
     def n_grid(self):
+        """
+        Number of variables of type 'grid'
+        """
         return sum(self.type == "grid")
 
     @property
     def n_device(self):
+        """ 
+        Number of variables of type 'device'
+        """
         return sum(self.type == "device")
 
     def __add__(self, other):
@@ -182,6 +189,30 @@ class StateSpaceModel:
         sys.u = sys.u[sys.u.type == "device"]
 
         return sys
+    
+    @classmethod
+    def from_interconnected2(cls, 
+                             components: list, 
+                             connections: list[np.ndarray], 
+                             u: DynamicalVariables,
+                             y: DynamicalVariables):
+        F, G, H, L = connections
+        sys = cls.from_stacked(components)
+        I_y = np.eye(F.shape[1])
+        I_u = np.eye(F.shape[0])
+
+        A = sys.A + sys.B @ F @ np.linalg.inv(I_y - sys.D @ F) @ sys.C
+        B = sys.B @ np.linalg.inv(I_u - F @ sys.D) @ G
+        C = H @ np.linalg.inv(I_y - sys.D @ F) @ sys.C
+        D = H @ np.linalg.inv(I_y - sys.D @ F) @ sys.D @ G + L
+        sys.A, sys.B, sys.C, sys.D = A, B, C, D
+        
+        # TODO: Add support for multiplication and addition?
+        sys.u = u 
+        sys.y = y 
+        sys.x.component = np.array([sys.u.component[0]]*len(sys.x))
+
+        return sys   
 
     @classmethod
     def from_csv(cls, filepath):
