@@ -100,14 +100,13 @@ class ShuntParallelRC:
         u = DynamicalVariables(
             name=["i_bus_D", "i_bus_Q"],
             component=f"pa_rc_{self.idx}",
-            type="grid",
+            type=["grid", "grid"],
             init=[self.emt_init.i_bus_D, self.emt_init.i_bus_Q],
         )
 
         x = DynamicalVariables(
             name=["v_bus_D", "v_bus_Q"],
             component=f"pa_rc_{self.idx}",
-            type="grid",
             init=[self.emt_init.v_bus_D, self.emt_init.v_bus_Q],
         )
         y = copy.deepcopy(x)

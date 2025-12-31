@@ -4,7 +4,8 @@ import logging
 from sting.system.core import System
 from sting.utils.dynamical_systems import modal_analisis
 from sting.utils.power_flow import PowerFlow
-from sting.simulation_emt import SimulationEMT
+from sting.modules.simulation_emt import SimulationEMT
+from sting.modules.small_signal_modeling import SmallSignalModel
 
 
 def run_ssm(case_dir=os.getcwd(), write_outputs=True, log=True):
@@ -30,6 +31,18 @@ def run_ssm(case_dir=os.getcwd(), write_outputs=True, log=True):
     if write_outputs:
         path = os.path.join(case_dir, "outputs", "small_signal_model")
         ssm.to_csv(path)
+
+    return sys, ssm
+
+def run_ssm2(case_dir=os.getcwd()):
+
+    sys = System.from_csv(case_dir=case_dir)
+
+    sys.clean_up()
+    pf = PowerFlow(system=sys)
+    pf_instance = pf.run_acopf()
+
+    ssm = SmallSignalModel(system=sys, case_directory=case_dir, power_flow_solution=pf_instance)
 
     return sys, ssm
 

@@ -116,7 +116,6 @@ class InfiniteSource:
         y = DynamicalVariables(
             name=["i_bus_D", "i_bus_Q"],
             component=f"{self.type}_{self.idx}",
-            type="grid",
             init=[i_bus_D, i_bus_Q],
         )
 
@@ -126,7 +125,6 @@ class InfiniteSource:
         x = DynamicalVariables(
             name=["i_bus_d", "i_bus_q"],
             component=f"{self.type}_{self.idx}",
-            type="device",
             init=[i_bus_d, i_bus_q],
         )
 

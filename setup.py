@@ -24,6 +24,7 @@ setup(
         "gamspy",
         "importlib",
         "pandas",
+        "polars",
         "numpy",
         "scipy",
         "tabulate",

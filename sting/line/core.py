@@ -8,41 +8,44 @@ def decompose_lines(system):
     print("\t- Lines with no series compensation", end=" ")
 
     for line in system.line_pi:
+        if not line.decomposed:
+            branch = BranchSeriesRL(
+                from_bus=line.from_bus,
+                to_bus=line.to_bus,
+                sbase=line.sbase,
+                vbase=line.vbase,
+                fbase=line.fbase,
+                r=line.r,
+                l=line.l,
+            )
 
-        branch = BranchSeriesRL(
-            from_bus=line.from_bus,
-            to_bus=line.to_bus,
-            sbase=line.sbase,
-            vbase=line.vbase,
-            fbase=line.fbase,
-            r=line.r,
-            l=line.l,
-        )
+            from_shunt = ShuntParallelRC(
+                name=f"from_shunt_{line.idx}",
+                bus_idx=line.from_bus,
+                sbase=line.sbase,
+                vbase=line.vbase,
+                fbase=line.fbase,
+                r=1 / line.g,
+                c=1 / line.b,
+            )
 
-        from_shunt = ShuntParallelRC(
-            name=f"from_shunt_{line.idx}",
-            bus_idx=line.from_bus,
-            sbase=line.sbase,
-            vbase=line.vbase,
-            fbase=line.fbase,
-            r=1 / line.g,
-            c=1 / line.b,
-        )
+            to_shunt = ShuntParallelRC(
+                name=f"to_shunt_{line.idx}",
+                bus_idx=line.to_bus,
+                sbase=line.sbase,
+                vbase=line.vbase,
+                fbase=line.fbase,
+                r=1 / line.g,
+                c=1 / line.b,
+            )
 
-        to_shunt = ShuntParallelRC(
-            name=f"to_shunt_{line.idx}",
-            bus_idx=line.to_bus,
-            sbase=line.sbase,
-            vbase=line.vbase,
-            fbase=line.fbase,
-            r=1 / line.g,
-            c=1 / line.b,
-        )
+            # Add shunts and branch to system
+            system.add(branch)
+            system.add(from_shunt)
+            system.add(to_shunt)
 
-        # Add shunts and branch to system
-        system.add(branch)
-        system.add(from_shunt)
-        system.add(to_shunt)
+            # Mark line as decomposed, so it is not decomposed again
+            line.decomposed = True
 
     # Delete all lines so they cannot be added to the system again
     # system.line_pi = []

@@ -243,6 +243,7 @@ class System:
     @property
     def branches(self):
         return self.query(sl.branches())
+    
 
     # ------------------------------------------------------------
     # Small-Signal Modeling
@@ -284,9 +285,15 @@ class System:
         branches, = self.branches.select("ssm")
 
         models = itertools.chain(generators, shunts, branches)
+     
+        # Input of system are device inputs according to defined G matrix
+        u = lambda stacked_u: stacked_u[stacked_u.type == "device"]
 
+        # Output of system are all outputs according to defined H matrix
+        y = lambda stacked_y: stacked_y
+                
         # Then interconnect models
-        return StateSpaceModel.from_interconnected(models, self.connections)
+        return StateSpaceModel.from_interconnected(models, self.connections, u, y)
     
     # ------------------------------------------------------------
     # EMT simulation

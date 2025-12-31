@@ -298,7 +298,7 @@ class GFMIc:
                                     )
 
         # Generate small-signal model
-        ssm = StateSpaceModel.from_interconnected2(components, connections, u, y)
+        ssm = StateSpaceModel.from_interconnected(components, connections, u, y)
 
         # Inputs and outputs
         #ssm.u = DynamicalVariables(

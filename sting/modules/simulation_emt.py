@@ -24,7 +24,7 @@ from sting.utils.graph_matrices import get_ccm_matrices
 # -----------
 class VariablesEMT(NamedTuple):
     """
-    All variables used for simulation. 
+    All variables in the system used for simulation. 
     """
     x: DynamicalVariables
     u: DynamicalVariables

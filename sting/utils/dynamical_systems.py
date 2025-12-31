@@ -4,8 +4,10 @@ import pandas as pd
 from more_itertools import transpose
 from scipy.linalg import eigvals, block_diag
 from scipy.integrate import solve_ivp
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from sting.utils.data_tools import matrix_to_csv, csv_to_matrix
+from typing import Self, Callable
+import polars as pl
 
 
 @dataclass(slots=True)
@@ -28,6 +30,7 @@ class DynamicalVariables:
     value: any = None
     time: any = None
 
+    """
     def __post_init__(self):
         # Convert fields to NumPy arrays if they aren't already
         self.name = np.asarray(self.name)
@@ -56,6 +59,26 @@ class DynamicalVariables:
         lengths = {len(self.name), len(self.component), len(self.type), len(self.init)}  
         if len(lengths) != 1:
             raise ValueError("All fields must have the same length.")
+    """
+    def __post_init__(self):
+        # Convert fields to NumPy arrays if they aren't already
+        self.name = np.asarray(self.name)
+
+        if self.component is None:
+            self.component = np.full(len(self.name), None)
+        else:
+            self.component = np.full(len(self.name), self.component)
+
+        if self.type is None:
+            self.type = np.full(len(self.name), None)
+        else:
+            self.type = np.asarray(self.type, dtype=str)
+        
+        if self.init is None:
+            self.init = np.full(len(self.name), None)
+        else:
+            self.init = np.asarray(self.init, dtype=float)
+
 
     @property
     def n_grid(self):
@@ -101,6 +124,12 @@ class DynamicalVariables:
         # Return unique a tuple uniquely identifying each variable
         return list(zip(self.component.tolist(), self.name.tolist()))
     
+    def to_csv(self, filepath, filename):
+        df = pl.DataFrame(asdict(self))
+        columns_to_keep = [col_name for col_name, dtype in df.schema.items() if dtype != pl.Null]
+        df_filtered = df.select(columns_to_keep)
+        os.makedirs(filepath, exist_ok=True)
+        df_filtered.write_csv(os.path.join(filepath, filename))
 
 
 @dataclass(slots=True)
@@ -168,34 +197,15 @@ class StateSpaceModel:
         x = sum(stack["x"], DynamicalVariables(name=[]))
 
         return cls(A=A, B=B, C=C, D=D, u=u, y=y, x=x)
-
+   
     @classmethod
-    def from_interconnected(cls, components, connections):
-        """
-        Create a state space-model by interconnecting a collection of state-space models.
-        """
-        F, G, H, L = connections
-        sys = cls.from_stacked(components)
-        I_y = np.eye(F.shape[1])
-        I_u = np.eye(F.shape[0])
-
-        A = sys.A + sys.B @ F @ np.linalg.inv(I_y - sys.D @ F) @ sys.C
-        B = sys.B @ np.linalg.inv(I_u - F @ sys.D) @ G
-        C = H @ np.linalg.inv(I_y - sys.D @ F) @ sys.C
-        D = H @ np.linalg.inv(I_y - sys.D @ F) @ sys.D @ G + L
-        sys.A, sys.B, sys.C, sys.D = A, B, C, D
-
-        # TODO: Add support for multiplication and addition?
-        sys.u = sys.u[sys.u.type == "device"]
-
-        return sys
-    
-    @classmethod
-    def from_interconnected2(cls, 
-                             components: list, 
+    def from_interconnected(cls, 
+                             components: list[Self], 
                              connections: list[np.ndarray], 
-                             u: DynamicalVariables,
-                             y: DynamicalVariables):
+                             u: DynamicalVariables | Callable[[DynamicalVariables], DynamicalVariables],
+                             y: DynamicalVariables | Callable[[DynamicalVariables], DynamicalVariables],
+                             component_name: str = None):
+        
         F, G, H, L = connections
         sys = cls.from_stacked(components)
         I_y = np.eye(F.shape[1])
@@ -205,14 +215,17 @@ class StateSpaceModel:
         B = sys.B @ np.linalg.inv(I_u - F @ sys.D) @ G
         C = H @ np.linalg.inv(I_y - sys.D @ F) @ sys.C
         D = H @ np.linalg.inv(I_y - sys.D @ F) @ sys.D @ G + L
-        sys.A, sys.B, sys.C, sys.D = A, B, C, D
+        
+        u = u if not callable(u) else u(sys.u)
+        y = y if not callable(y) else y(sys.y)
+
+        new_sys = cls(A=A, B=B, C=C, D=D, u=u, y=y, x=sys.x)
         
         # TODO: Add support for multiplication and addition?
-        sys.u = u 
-        sys.y = y 
-        sys.x.component = np.array([sys.u.component[0]]*len(sys.x))
+        if component_name is not None:
+            new_sys.x.component = np.array([component_name]*len(new_sys.x))
 
-        return sys   
+        return new_sys   
 
     @classmethod
     def from_csv(cls, filepath):
@@ -236,11 +249,18 @@ class StateSpaceModel:
         pass
 
     def to_csv(self, filepath):
+        
+        # Export variables
+        self.x.to_csv(filepath, "x.csv")
+        self.u.to_csv(filepath, "u.csv")
+        self.y.to_csv(filepath, "y.csv")
+
         # Row and column names
         u = self.u.to_list()
         y = self.y.to_list()
         x = self.x.to_list()
-        # Save each matrix
+
+        # Export each matrix
         os.makedirs(filepath, exist_ok=True)
         matrix_to_csv(
             filepath=os.path.join(filepath, "A.csv"), matrix=self.A, index=x, columns=x
