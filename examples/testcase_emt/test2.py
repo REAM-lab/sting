@@ -16,26 +16,11 @@ class DynamicalVariables:
                  value: list[np.ndarray] = None, 
                  time: np.ndarray = None):
         
-        self._name = np.asarray(name, dtype=str)
-        self._name = np.atleast_1d(self._name)
-
+        self._name = np.atleast_1d(name)
         self._component = np.full(len(self._name), component if component is not None else '') 
         self._type = np.full(len(self._name), type if type is not None else '') 
         self._init =np.full(len(self._name), init if init is not None else np.nan) 
-
-        if value is None:
-            self._value = np.full((len(self._name),1), np.nan)
-        elif isinstance(value, np.ndarray):
-            self._value = np.atleast_2d(value)
-        else:
-            self._value = np.vstack(value)
-        #if value is None:
-        #    self._value = [np.atleast_1d(np.nan)]*len(self._name)
-        #elif isinstance(value, np.ndarray):
-        #    self._value = [value]
-        #else:
-        #    self._value = [np.atleast_1d(v).astype(float) for v in value]
-
+        self._value = np.full((len(self._name),1), np.nan) if value is None else np.atleast_2d(value)
         self._time = np.atleast_1d(time) if time is not None else np.atleast_1d(np.nan)
     
     def __post_init__(self):
@@ -99,10 +84,10 @@ class DynamicalVariables:
     
     @value.setter
     def value(self, new_value):
-        if isinstance(new_value, np.ndarray):
-            new_value = np.atleast_2d(new_value)
-        else:
-            new_value = np.vstack(new_value)
+        #if isinstance(new_value, np.ndarray):
+        new_value = np.atleast_2d(new_value)
+        #else:
+        #    new_value = np.vstack(new_value)
         self.check_shapes(new_value)
         self._value = new_value
     
@@ -220,7 +205,7 @@ u.time = np.array([0, 1])
 
 r = u + l
 
-r.to_csv()
+#r.to_csv()
 
 xx = r.to_timeseries()
 

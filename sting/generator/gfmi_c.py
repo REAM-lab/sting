@@ -285,7 +285,6 @@ class GFMIc:
 
         u = DynamicalVariables(
                                     name=["p_ref", "q_ref", "v_ref", "v_bus_D", "v_bus_Q"],
-                                    component=f"{self.type}_{self.idx}",
                                     type=["device", "device", "device", "grid", "grid"],
                                     init=[p_ref, q_ref, v_ref, v_bus_D, v_bus_Q]
                                     )
@@ -293,12 +292,11 @@ class GFMIc:
         i_bus_D, i_bus_Q = self.emt_init.i_bus_D, self.emt_init.i_bus_Q
         y = DynamicalVariables(
                                     name=["i_bus_D", "i_bus_Q"],
-                                    component=f"{self.type}_{self.idx}",
                                     init=[i_bus_D, i_bus_Q]
                                     )
 
         # Generate small-signal model
-        ssm = StateSpaceModel.from_interconnected(components, connections, u, y)
+        ssm = StateSpaceModel.from_interconnected(components, connections, u, y, component_label=f"{self.type}_{self.idx}")
 
         # Inputs and outputs
         #ssm.u = DynamicalVariables(
