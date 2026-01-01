@@ -1,5 +1,6 @@
 """
-Testcase1 simulates a two infinite sources connected via a transmission line.
+Testcase2 simulates a GFLI connected to an infinite source
+via a transmission line.
 
 First, we compute the system-wide small-signal model using STING. 
 This small-signal model also contains EMT initial conditions.

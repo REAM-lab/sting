@@ -17,7 +17,6 @@ import pandas as pd
 # ------------------
 # Import sting code
 # ------------------
-from sting.modules.simulation_emt import ComponentEMT
 from sting.system.core import System
 import sting.system.selections as sl
 from sting.utils.dynamical_systems import DynamicalVariables, StateSpaceModel, modal_analisis
@@ -53,8 +52,6 @@ class ComponentSSM(NamedTuple):
 @dataclass(slots=True)
 class SmallSignalModel:
     system: System 
-    case_directory: str
-    power_flow_solution: pd.DataFrame
     components: list[ComponentSSM] = field(init=False)
     ccm_matrices: list[np.ndarray] = field(init=False)
     model: StateSpaceModel = field(init=False)
@@ -62,9 +59,8 @@ class SmallSignalModel:
     def __post_init__(self):
         self.system.clean_up()
         self.get_components()
-        self.construct_ssm()
+        self.construct_components_ssm()
         self.get_ccm_matrices()
-        self.interconnect_ssm()
 
     def get_components(self):
         """
@@ -106,16 +102,14 @@ class SmallSignalModel:
 
         self.ccm_matrices = [F, G, H, L]
 
-    def construct_ssm(self):
+    def construct_components_ssm(self):
         """
-        Create each components SSM given a power flow solution
+        Create each small-signal model of each component
         """
-        # Build each components SSM
-        self.apply("_load_power_flow_solution", self.power_flow_solution)
         self.apply("_calculate_emt_initial_conditions")
         self.apply("_build_small_signal_model")
 
-    def interconnect_ssm(self):
+    def construct_system_ssm(self):
         """
         Return a state-space model of all interconnected components
         """
@@ -140,4 +134,4 @@ class SmallSignalModel:
         modal_analisis(self.model.A, show=True)
 
         # Export small-signal model to CSV files
-        self.model.to_csv(os.path.join(self.case_directory, "outputs", "small_signal_model"))
+        self.model.to_csv(os.path.join(self.system.case_directory, "outputs", "small_signal_model"))

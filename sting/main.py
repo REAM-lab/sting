@@ -1,48 +1,47 @@
+# ----------------------
+# Import python packages
+# ----------------------
 import os
 import logging
 
+# ------------------
+# Import sting code
+# ------------------
 from sting.system.core import System
-from sting.utils.dynamical_systems import modal_analisis
-from sting.utils.power_flow import PowerFlow
+from sting.modules.power_flow import PowerFlow
 from sting.modules.simulation_emt import SimulationEMT
 from sting.modules.small_signal_modeling import SmallSignalModel
 
+# ----------------
+# Main functions
+# ----------------
+def run_acopf(case_directory = os.getcwd()):
+    """
+    Routine to run AC optimal power flow from a case study directory.
+    """
+    # Load system from CSV files
+    sys = System.from_csv(case_directory=case_directory)
 
-def run_ssm(case_dir=os.getcwd(), write_outputs=True, log=True):
-
-    #logging.basicConfig(filename="main.log", level=logging.INFO)
-
-    # Set up grid from CSV files
-    sys = System.from_csv(case_dir=case_dir)
-
-    # Run AC-OPF
-    sys.clean_up()
+    # Run power flow
     pf = PowerFlow(system=sys)
-    pf_instance = pf.run_acopf()
+    pf.run_acopf()
 
-    # Use AC-OPF solution to build small-signal models
-    sys.construct_ssm(pf_instance)
-    ssm = sys.interconnect()
+    return sys
 
-    # Analysis of final system stability
-    modal_analisis(ssm.A, show=True)
+def run_ssm(case_directory = os.getcwd()):
+    """
+    Routine to construct the system and its small-signal model from a case study directory.
+    """
+    # Load system from CSV files
+    sys = System.from_csv(case_directory=case_directory)
 
-    # Save the interconnected system model
-    if write_outputs:
-        path = os.path.join(case_dir, "outputs", "small_signal_model")
-        ssm.to_csv(path)
-
-    return sys, ssm
-
-def run_ssm2(case_dir=os.getcwd()):
-
-    sys = System.from_csv(case_dir=case_dir)
-
-    sys.clean_up()
+    # Run power flow
     pf = PowerFlow(system=sys)
-    pf_instance = pf.run_acopf()
+    pf.run_acopf()
 
-    ssm = SmallSignalModel(system=sys, case_directory=case_dir, power_flow_solution=pf_instance)
+    # Construct small-signal model
+    ssm = SmallSignalModel(system=sys)
+    ssm.construct_system_ssm()
 
     return sys, ssm
 

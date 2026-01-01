@@ -34,7 +34,7 @@ class System:
     # ------------------------------------------------------------
     # Construction + Read/Write
     # ------------------------------------------------------------
-    def __init__(self, components=None):
+    def __init__(self, components=None, case_directory=os.getcwd()):
         """
         Create attributes for the system that correspond to different types of components
         For example: if we type sys = System(), then sys will have the attributes
@@ -71,31 +71,37 @@ class System:
         for component_name in self.components["type"]:
             setattr(self, component_name, [])
 
+        # Store case directory
+        self.case_directory = case_directory
+
         print("... ok.")
 
     @classmethod
-    def from_csv(cls, case_dir=os.getcwd(), components=None):
+    def from_csv(cls, components=None, case_directory=os.getcwd()):
         """
         Add components from csv files. Each csv file has components of the same type.
         For example: gfli_a.csv contains ten gflis, but from the same type gfli_a.
         Each row of gfli_a.csv is a gfli_a that will be added to the system attribute gfli_a. 
         
         ### Inputs:
-        - cls (System class)
-        - case_dir (str): Directory of the case study. 
+        - cls: `System` 
+        - case_directory: `str` 
+                        Directory of the case study. 
                         This directory has a folder "inputs" that has the csv files. 
                         By default it is current directory where we execute sting.
-        - components (list): Type of components, for example components=['gfli_a', 'gfmi_c'].
+        - components: `list`
+                        Type of components, for example components=['gfli_a', 'gfmi_c'].
         
         ### Outputs:
-        - self (System instance): it contains the components that have data from csv files.
+        - self: `System`
+                    It contains the components that have data from csv files.
         """
 
         # Get directory of the folder "inputs"
-        inputs_dir = os.path.join(case_dir, "inputs") 
+        inputs_dir = os.path.join(case_directory, "inputs") 
 
         # Create instance System.
-        self = cls(components=components) 
+        self = cls(components=components, case_directory=case_directory) 
 
         print("> Load components via CSV files from:")
 

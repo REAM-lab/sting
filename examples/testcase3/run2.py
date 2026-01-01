@@ -1,5 +1,6 @@
 """
-Testcase1 simulates a two infinite sources connected via a transmission line.
+Testcase3 simulates a GFLIa connected to an infinite source
+via a transmission line.
 
 First, we compute the system-wide small-signal model using STING. 
 This small-signal model also contains EMT initial conditions.
@@ -11,6 +12,7 @@ In EMT simulation is in the file sim_emt.slx.
 Comparison between the small-signal simulation and EMT simultion
 shows a proximity of these domain responses. Dec 7, 2025.
 """
+
 
 # Import Python standard and third-party packages
 import os

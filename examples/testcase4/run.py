@@ -1,5 +1,5 @@
 """
-Testcase3 simulates a GFMIc connected to an infinite source
+Testcase4 simulates a GFMIc connected to an infinite source
 via a transmission line.
 
 First, we compute the system-wide small-signal model using STING. 

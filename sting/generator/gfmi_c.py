@@ -7,16 +7,21 @@ This module contains the GFMI generator that includes:
 
 There is no DC-side dynamics modeled for the GFMI.
 """
-
-# Import standard python packages
+# ----------------------
+# Import python packages
+# ----------------------
 import numpy as np
 from typing import NamedTuple, Optional, ClassVar
 from dataclasses import dataclass, field
 
-# Import sting packages
+# ------------------
+# Import sting code
+# ------------------
 from sting.utils.dynamical_systems import StateSpaceModel, DynamicalVariables
 
-
+# -----------
+# Sub-classes
+# -----------
 class PowerFlowVariables(NamedTuple):
     p_bus: float
     q_bus: float
@@ -47,7 +52,9 @@ class InitialConditionsEMT(NamedTuple):
     v_vsc_mag: float
     v_vsc_DQ_phase: float
 
-
+# -----------
+# Main class
+# -----------
 @dataclass(slots=True)
 class GFMIc:
     idx: int = field(default=-1, init=False)
@@ -283,6 +290,7 @@ class GFMIc:
         components = [pc_controller, voltage_mag_controller, lcl_filter]
         connections = [Fccm, Gccm, Hccm, Lccm]
 
+        # Inputs and outputs
         u = DynamicalVariables(
                                     name=["p_ref", "q_ref", "v_ref", "v_bus_D", "v_bus_Q"],
                                     type=["device", "device", "device", "grid", "grid"],
@@ -297,20 +305,5 @@ class GFMIc:
 
         # Generate small-signal model
         ssm = StateSpaceModel.from_interconnected(components, connections, u, y, component_label=f"{self.type}_{self.idx}")
-
-        # Inputs and outputs
-        #ssm.u = DynamicalVariables(
-        #                            name=["p_ref", "q_ref", "v_ref", "v_bus_D", "v_bus_Q"],
-        #                            component=f"{self.type}_{self.idx}",
-        #                            type=["device", "device", "device", "grid", "grid"],
-        #                            init=[p_ref, q_ref, v_ref, v_bus_D, v_bus_Q]
-        #                            )
-        
-        #i_bus_D, i_bus_Q = self.emt_init.i_bus_D, self.emt_init.i_bus_Q
-        #ssm.y = DynamicalVariables(
-        #                            name=["i_bus_D", "i_bus_Q"],
-        #                            component=f"{self.type}_{self.idx}",
-        #                            init=[i_bus_D, i_bus_Q]
-        #                            )
 
         self.ssm = ssm

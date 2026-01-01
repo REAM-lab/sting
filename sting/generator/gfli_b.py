@@ -6,17 +6,22 @@ This module implements a GFLI that incorporates:
 - DC-side circuit: A resistance in parallel with two capacitors
 - DC-side voltage controller: PI controller for the DC-side voltage.
 """
-
-
-# Import standard python packages
+# ----------------------
+# Import python packages
+# ----------------------
 import numpy as np
 from typing import NamedTuple, Optional, ClassVar
 from dataclasses import dataclass, field
 import scipy.linalg 
 
-# Import sting packages
+# ------------------
+# Import sting code
+# ------------------
 from sting.utils.dynamical_systems import StateSpaceModel, DynamicalVariables
 
+# -----------
+# Sub-classes
+# -----------
 class PowerFlowVariables(NamedTuple):
     p_bus: float
     q_bus: float 
@@ -46,6 +51,9 @@ class InitialConditionsEMT(NamedTuple):
     v_vsc_mag: float
     v_vsc_DQ_phase: float
 
+# ----------------
+# Main class
+# ----------------
 @dataclass(slots=True)
 class GFLIb:
     """GFLI that has L filter, PLL, DC-side with voltage control."""
@@ -241,22 +249,21 @@ class GFLIb:
         components = [pi_controller, l_filter, pll, dc_pi_controller, dc_circuit]
         connections = [Fccm, Gccm, Hccm, Lccm]
 
-        ssm = StateSpaceModel.from_interconnected(components, connections)
-
+        # Inputs and outputs
         i_dc_src = self.i_dc_src
         v_bus_D, v_bus_Q= self.emt_init.v_bus_D, self.emt_init.v_bus_Q
-        ssm.u = DynamicalVariables(
+        u = DynamicalVariables(
                                     name=['v_dc_ref', 'i_bus_q_ref', 'i_dc_src', 'v_bus_D', 'v_bus_Q'],
-                                    component=f"{self.type}_{self.idx}",
                                     type=["device", "device", "device", "grid", "grid"],
                                     init=[v_dc, i_bus_q, i_dc_src, v_bus_D, v_bus_Q])
         
         i_bus_D, i_bus_Q= self.emt_init.i_bus_D, self.emt_init.i_bus_Q
-        ssm.y = DynamicalVariables(
+        y = DynamicalVariables(
                                     name=['i_bus_D', 'i_bus_Q'],
-                                    component=f"{self.type}_{self.idx}",
                                     init=[i_bus_D, i_bus_Q])
-        
+
+        ssm = StateSpaceModel.from_interconnected(components, connections, u, y, component_label=f"{self.type}_{self.idx}")
+
         self.ssm = ssm        
         
         

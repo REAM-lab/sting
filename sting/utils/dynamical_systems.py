@@ -432,6 +432,9 @@ class StateSpaceModel:
 
     def to_csv(self, filepath):
         
+        # Create output directory if it doesn't exist
+        os.makedirs(filepath, exist_ok=True)
+
         # Export variables
         self.x.to_dataframe(os.path.join(filepath, "x.csv"))
         self.u.to_dataframe(os.path.join(filepath, "u.csv"))
@@ -443,7 +446,6 @@ class StateSpaceModel:
         x = self.x.to_list()
 
         # Export each matrix
-        os.makedirs(filepath, exist_ok=True)
         matrix_to_csv(
             filepath=os.path.join(filepath, "A.csv"), matrix=self.A, index=x, columns=x
         )
