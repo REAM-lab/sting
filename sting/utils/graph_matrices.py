@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.linalg import block_diag
 from sting.system.selections import find_tagged
+from sting.line.pi_model import Line
 
 # from sting.models import ComponentConnections
 
@@ -60,6 +61,24 @@ def build_admittance_matrix(num_buses: int, branch_data=None, shunt_data=None):
 
     return Y
 
+def build_admittance_matrix2(num_buses: int, lines: list[Line]):
+
+    Y = np.zeros((num_buses, num_buses), dtype=complex)
+
+    for line in lines:
+        i = line.bus_from_idx - 1
+        j = line.bus_to_idx - 1
+
+        z = complex(line.r_pu, line.x_pu)
+        y = 1.0 / z
+
+        Y[i, j] -= y
+        Y[j, i] -= y
+
+        Y[i, i] += y
+        Y[j, j] += y
+
+    return Y
 
 def build_generation_connection_matrix(num_buses: int, gen_bus: list):
 
