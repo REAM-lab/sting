@@ -77,6 +77,6 @@ def run_capex(case_directory=os.getcwd()):
 
     # Perform capacity expansion analysis
     capex = CapacityExpansion(system=sys)
-    capex.solve_model()
+    capex.solve()
 
     return sys

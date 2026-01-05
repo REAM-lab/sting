@@ -4,6 +4,14 @@
 from dataclasses import dataclass, field
 from typing import ClassVar, Optional
 import pyomo.environ as pyo
+import numpy as np
+import polars as pl
+import os
+
+# -------------
+# Import sting code
+# --------------
+from sting.utils.data_tools import pyovariable_to_df
 
 # ----------------
 # Main classes     
@@ -119,3 +127,44 @@ def construct_capacity_expansion_model(system, model, model_settings):
     model.eGenTotalCost = pyo.Expression(
                             expr = lambda m: m.eGenCostPerPeriod + sum(m.eGenCostPerTp[t] * t.weight for t in T)
                             )
+    
+def export_results_capacity_expansion(system, model: pyo.ConcreteModel, output_directory: str):
+
+    # Export generator dispatch results
+    pyovariable_to_df(model.vGEN, 
+                      dfcol_to_field={'generator': 'name', 'timepoint': 'name'}, 
+                      value_name='Dispatch_MW', 
+                      csv_filepath=os.path.join(output_directory, 'generator_dispatch.csv'))
+
+    pyovariable_to_df(model.vGENV, 
+                      dfcol_to_field={'generator': 'name', 'scenario': 'name', 'timepoint': 'name'}, 
+                      value_name='Dispatch_MW', 
+                      csv_filepath=os.path.join(output_directory, 'variable_generator_dispatch.csv'))
+
+    # Export generator capacity results
+    pyovariable_to_df(model.vCAP, 
+                      dfcol_to_field={'generator': 'name'}, 
+                      value_name='Capacity_MW', 
+                      csv_filepath=os.path.join(output_directory, 'generator_capacity.csv'))
+
+    pyovariable_to_df(model.vCAPV, 
+                      dfcol_to_field={'generator': 'name', 'scenario': 'name'}, 
+                      value_name='Capacity_MW', 
+                      csv_filepath=os.path.join(output_directory, 'variable_generator_capacity.csv'))
+
+    # Export load shedding results if it is existing
+    if hasattr(model, 'vSHED'):
+        pyovariable_to_df(model.vSHED, 
+                          dfcol_to_field={'bus': 'name', 'scenario': 'name', 'timepoint': 'name'}, 
+                          value_name='Load_Shed_MW', 
+                          csv_filepath=os.path.join(output_directory, 'load_shedding.csv'))
+
+    
+    # Export summary of generator costs
+    costs = pl.DataFrame({'component' : ['CostPerTimepoint_USD', 'CostPerPeriod_USD', 'TotalCost_USD'],
+                          'cost' : [  sum( pyo.value(model.eGenCostPerTp[t]) * t.weight for t in system.tp), 
+                                            pyo.value(model.eGenCostPerPeriod), 
+                                            pyo.value(model.eGenTotalCost)]})
+    costs.write_csv(os.path.join(output_directory, 'generator_costs_summary.csv'))
+
+

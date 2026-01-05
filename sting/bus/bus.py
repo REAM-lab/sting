@@ -111,11 +111,59 @@ def export_results_capacity_expansion(system, model: pyo.ConcreteModel, output_d
     def dct_to_tuple(dct_item):
         k, v = dct_item
         bus, sc, t = k
-        return (bus.name, sc.name, t.name, v * 180 / np.pi) 
+        return (bus.name, sc.name, t.name, v) 
     
-    df = pl.DataFrame(  
-                        schema =['bus', 'scenario', 'timepoint', 'voltage_angle_rad'],
+    df_angle = pl.DataFrame(  
+                        schema =['bus', 'scenario', 'timepoint', 'angle_rad'],
                         data= map(dct_to_tuple, dct.items()) )
 
-    df.write_csv(os.path.join(output_directory, 'bus_voltage_angles.csv'))
+    df_line = pl.DataFrame(
+        schema = ['name', 'from_bus', 'to_bus', 'r_pu', 'x_pu', 'g_pu', 'b_pu', 'rating_MVA'],
+        data= map(lambda l: (l.name, l.from_bus, l.to_bus, l.r_pu, l.x_pu, l.g_pu, l.b_pu, l.rating_MVA), system.line_pi)
+    )
+
+    # Join
+    df = df_line.join(df_angle,
+                        left_on = ['from_bus'],
+                        right_on = ['bus'],
+                        how = 'right')
+    
+    df = df.drop_nulls()
+    df = df.rename({'angle_rad': 'from_bus_angle_rad', 'bus': 'from_bus'})
+
+    # Join again
+    df = df.join(df_angle, 
+                 left_on = ['to_bus', 'scenario', 'timepoint'],
+                 right_on = ['bus', 'scenario', 'timepoint'],
+                 how = 'right')
+    df = df.drop_nulls()
+    df = df.rename({'angle_rad': 'to_bus_angle_rad', 'bus': 'to_bus'})
+    
+    # Compute admittance
+    df = df.with_columns(
+        (pl.col('x_pu') / (pl.col('r_pu')**2 + pl.col('x_pu')**2)).alias('y_pu'))
+    
+    # Compute DC flow
+    df = df.with_columns(
+        (100 * pl.col('y_pu') * (pl.col('from_bus_angle_rad') - pl.col('to_bus_angle_rad'))).alias('DCflow_MW'))
+    
+    # Compute losses
+    df = df.with_columns(
+        (pl.col('r_pu') * pl.col('DCflow_MW')**2).alias('losses_MW'))
+    
+    # Transform radians to degrees
+    df = df.with_columns(
+        (pl.col('from_bus_angle_rad') * 180 / np.pi).alias('from_bus_angle_deg'))
+    df = df.with_columns(
+        (pl.col('to_bus_angle_rad') * 180 / np.pi).alias('to_bus_angle_deg'))
+    
+    # Select columns to export
+    df = df.select([
+                    'name', 'from_bus', 'to_bus', 'scenario', 'timepoint', 'from_bus_angle_deg', 'to_bus_angle_deg',
+                    'DCflow_MW', 'losses_MW'])
+    
+    # Export to CSV
+    df.write_csv(os.path.join(output_directory, 'line_flows.csv'))
+
+    
                         

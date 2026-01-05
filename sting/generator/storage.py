@@ -4,6 +4,13 @@
 from dataclasses import dataclass, field
 from typing import ClassVar, Optional
 import pyomo.environ as pyo
+import os
+import polars as pl
+
+# -------------
+# Import sting code
+# --------------
+from sting.utils.data_tools import pyovariable_to_df
 
 # ----------------
 # Main classes     
@@ -96,4 +103,36 @@ def construct_capacity_expansion_model(system, model, model_settings):
     # Total storage cost
     model.eStorTotalCost = pyo.Expression(expr = lambda m: 
                      sum(m.eStorCostPerTp[t] * t.weight for t in T) + m.eStorCostPerPeriod )
+
+def export_results_capacity_expansion(system, model: pyo.ConcreteModel, output_directory: str):
+
+    # Export discharge and charge results
+    df1 = pyovariable_to_df(model.vDISCHA, 
+                            dfcol_to_field={'storage': 'name', 'scenario': 'name', 'timepoint': 'name'}, 
+                            value_name='Discharge_MW')
     
+    df2 = pyovariable_to_df(model.vCHARGE, 
+                            dfcol_to_field={'storage': 'name', 'scenario': 'name', 'timepoint': 'name'}, 
+                            value_name='Charge_MW')
+    
+    df = df1.join(df2, on=['storage', 'scenario', 'timepoint'])
+    df.write_csv(os.path.join(output_directory, 'storage_dispatch.csv'))
+
+    # Export storage capacity results
+    df1 = pyovariable_to_df(model.vPCAP, 
+                            dfcol_to_field={'storage': 'name', 'scenario': 'name'}, 
+                            value_name='Power_Capacity_MW')
+    
+    df2 = pyovariable_to_df(model.vECAP, 
+                            dfcol_to_field={'storage': 'name', 'scenario': 'name'}, 
+                            value_name='Energy_Capacity_MWh')
+    
+    df = df1.join(df2, on=['storage', 'scenario'])
+    df.write_csv(os.path.join(output_directory, 'storage_capacity.csv'))
+
+    # Export summary of generator costs
+    costs = pl.DataFrame({'component' : ['CostPerTimepoint_USD', 'CostPerPeriod_USD', 'TotalCost_USD'],
+                          'cost' : [  sum( pyo.value(model.eStorCostPerTp[t]) * t.weight for t in system.tp), 
+                                            pyo.value(model.eStorCostPerPeriod), 
+                                            pyo.value(model.eStorTotalCost)]})
+    costs.write_csv(os.path.join(output_directory, 'storage_costs_summary.csv'))
