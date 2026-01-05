@@ -10,8 +10,8 @@ import pyomo.environ as pyo
 # ----------------
 @dataclass(slots=True)
 class Generator:
-    idx: int = field(default=-1, init=False)
-    generator: str
+    id: int = field(default=0, init=False)
+    name: str
     technology: str
     bus: str
     site: str
@@ -22,13 +22,12 @@ class Generator:
     c0_USD: float
     c1_USDperMWh: float
     c2_USDperMWh2: float
-
-    def __hash__(self):
-        return hash(self.idx)
+    tags: ClassVar[list[str]] = ["generator"]
+    bus_id: int = None
 
 @dataclass(slots=True)
 class CapacityFactor:
-    idx: int = field(default=-1, init=False)
+    id: int = field(default=-1, init=False)
     site: str
     technology: str
     scenario: str

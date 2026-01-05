@@ -42,8 +42,8 @@ def calc_power_flow_in_branch(row: pd.Series):
     v1phase = row["from_bus_vphase"]
     v2mag = row["to_bus_vmag"]
     v2phase = row["to_bus_vphase"]
-    r = row["r"]
-    l = row["l"]
+    r = row["r_pu"]
+    l = row["l_pu"]
 
     # Power flow calculations
     v1 = v1mag * np.exp(v1phase * 1j)
@@ -78,8 +78,8 @@ def calc_power_flow_in_shunt(row: pd.Series):
     # Extract voltage and branch parameters
     vmag = row["bus_vmag"]
     vphase = row["bus_vphase"]
-    g = row["g"]
-    b = row["b"]
+    g = row["g_pu"]
+    b = row["b_pu"]
 
     # Power flow calculations
     v = vmag * np.exp(vphase * 1j)
@@ -147,7 +147,7 @@ class PowerFlow:
         First, the system is cleaned up and then the following tables are constructed:
 
         * Generators *
-        gen_idx   | bus_idx  p_min  p_max  q_min  q_max
+        gen_idx   | bus_id  p_min  p_max  q_min  q_max
         ------------------------------------------------
         inf_src_1 |  1       -2.0   2.0    -5.0    5.0
 
@@ -162,7 +162,7 @@ class PowerFlow:
         se_rl_1 |        1   2      0.01  0.05
 
         * Shunts *
-                 | bus_idx     g         b
+                 | bus_id     g         b
         ------------------------------------------------
         pa_rc_1 |        1  0.05  0.066667
 
@@ -171,17 +171,18 @@ class PowerFlow:
 
         sys = self.system
 
-        attrs = ["bus_idx", "p_min", "p_max", "q_min", "q_max"]
-        self.generators = sys.generators.to_table(*attrs, index_name="gen_idx")
-        self.generators["bus_idx"] = self.generators["bus_idx"].map(str)
+        attrs = ["bus_id", "p_min", "p_max", "q_min", "q_max"]
+        self.generators = sys.generators.to_table(*attrs, index_name="gen_id")
+        self.generators["bus_id"] = self.generators["bus_id"].map(str)
 
         attrs = ["v_min", "v_max", "p_load", "q_load"]
-        self.buses = sys.query("bus").to_table(*attrs, index="idx", index_name="bus_idx")
+        self.buses = sys.query("bus").to_table(*attrs, index="id", index_name="bus_id")
         self.buses.index = self.buses.index.map(str)
 
         # Note: we assume only one branch between two adjacent buses
-        self.branches = sys.branches.to_table("from_bus", "to_bus", "r", "l")
-        self.shunts = sys.shunts.to_table("bus_idx", "g", "b")
+        self.branches = sys.branches.to_table("from_bus_id", "to_bus_id", "r_pu", "l_pu")
+        self.shunts = sys.shunts.to_table("bus_id", "g_pu", "b_pu")
+        self.shunts.bus_id = self.shunts.bus_id.map(str)
 
     def run_acopf(self):
         """
@@ -211,7 +212,7 @@ class PowerFlow:
         ]  # It determines the type of formulation of the power flow equations
 
         # Create set of buses
-        n = gsp.Set(m, name="bus_idx", records=buses.index)
+        n = gsp.Set(m, name="bus_id", records=buses.index)
         k = gsp.Alias(
             m, alias_with=n
         )  # Necessary to iterate over buses twice in the power flow formulation.
@@ -235,10 +236,10 @@ class PowerFlow:
             B = gsp.Parameter(m, domain=[n, k], records=Y.imag)
 
         # Create set of generators
-        g = gsp.Set(m, name="gen_idx", records=generators.index)
+        g = gsp.Set(m, name="gen_id", records=generators.index)
 
         # Create link sets: (bus, gen). It is necessary to create bus power generation.
-        bus_gen_connections = generators.reset_index()[["bus_idx", "gen_idx"]].apply(
+        bus_gen_connections = generators.reset_index()[["bus_id", "gen_id"]].apply(
             tuple, axis=1
         )
         bus_gen = gsp.Set(m, domain=[n, g], records=list(bus_gen_connections))
@@ -277,7 +278,7 @@ class PowerFlow:
         vphase.lo[n] = -np.pi / 2
         vphase.up[n] = +np.pi / 2
 
-        vphase.fx["1"] = 0  # Fix voltage phase of first bus to zero.
+        vphase.fx["0"] = 0  # Fix voltage phase of first bus to zero.
 
         # Create variables that represent active and reactive power shedding [p.u.] at every bus.
         pshed = gsp.Variable(m, domain=[n], type="Positive")
@@ -400,12 +401,12 @@ class PowerFlow:
         generators = generators.join(qg).rename(columns={"level": "q"})
         generators = generators.merge(
             vmag.rename(columns={"level": "bus_vmag"}),
-            left_on="bus_idx",
+            left_on="bus_id",
             right_index=True,
         )
         generators = generators.merge(
             vphase.rename(columns={"level": "bus_vphase"}),
-            left_on="bus_idx",
+            left_on="bus_id",
             right_index=True,
         )
 
@@ -413,17 +414,19 @@ class PowerFlow:
 
         # Update branch dataframe with opf solution
         if branches is not None:
+            branches.from_bus_id = branches.from_bus_id.map(str)
+            branches.to_bus_id = branches.to_bus_id.map(str)
             branches = branches.merge(
-                vmag, left_on="from_bus", right_index=True
+                vmag, left_on="from_bus_id", right_index=True
             ).rename(columns={"level": "from_bus_vmag"})
-            branches = branches.merge(vmag, left_on="to_bus", right_index=True).rename(
+            branches = branches.merge(vmag, left_on="to_bus_id", right_index=True).rename(
                 columns={"level": "to_bus_vmag"}
             )
             branches = branches.merge(
-                vphase, left_on="from_bus", right_index=True
+                vphase, left_on="from_bus_id", right_index=True
             ).rename(columns={"level": "from_bus_vphase"})
             branches = branches.merge(
-                vphase, left_on="to_bus", right_index=True
+                vphase, left_on="to_bus_id", right_index=True
             ).rename(columns={"level": "to_bus_vphase"})
             branches[["p", "plosses", "q", "qlosses"]] = branches.apply(
                 calc_power_flow_in_branch, axis=1, result_type="expand"
@@ -432,10 +435,10 @@ class PowerFlow:
 
         # Update shunt dataframe with opf solution
         if shunts is not None:
-            shunts = shunts.merge(vmag, left_on="bus_idx", right_index=True).rename(
+            shunts = shunts.merge(vmag, left_on="bus_id", right_index=True).rename(
                 columns={"level": "bus_vmag"}
             )
-            shunts = shunts.merge(vphase, left_on="bus_idx", right_index=True).rename(
+            shunts = shunts.merge(vphase, left_on="bus_id", right_index=True).rename(
                 columns={"level": "bus_vphase"}
             )
             shunts[["p", "q"]] = shunts.apply(
@@ -512,9 +515,9 @@ class PowerFlow:
 
                 print("| Generators")
                 df = self.generators.copy()
-                df = df[["bus_idx", "p", "q"]]
+                df = df[["bus_id", "p", "q"]]
                 df.rename(
-                    columns={"bus_idx": "Bus", "p": "P [p.u]", "q": "Q [p.u]"},
+                    columns={"bus_id": "Bus", "p": "P [p.u]", "q": "Q [p.u]"},
                     inplace=True,
                 )
                 print(df.to_markdown(**print_settings))
@@ -523,11 +526,11 @@ class PowerFlow:
                 print("| Branches")
                 if not self.branches.empty:
                     df = self.branches.copy()
-                    df = df[["from_bus", "to_bus", "p", "plosses", "qlosses"]]
+                    df = df[["from_bus_id", "to_bus_id", "p", "plosses", "qlosses"]]
                     df.rename(
                         columns={
-                            "from_bus": "From bus",
-                            "to_bus": "To bus",
+                            "from_bus_id": "From bus",
+                            "to_bus_id": "To bus",
                             "p": "P [p.u.]",
                             "plosses": "Plosses [p.u.]",
                             "qlosses": "Qlosses [p.u.]",
@@ -540,9 +543,9 @@ class PowerFlow:
                 print("| Shunts")
                 if not self.shunts.empty:
                     df = self.shunts.copy()
-                    df = df[["bus_idx", "p", "q"]]
+                    df = df[["bus_id", "p", "q"]]
                     df.rename(
-                        columns={"bus_idx": "Bus", "p": "P [p.u.]", "q": "Q [p.u.]"},
+                        columns={"bus_id": "Bus", "p": "P [p.u.]", "q": "Q [p.u.]"},
                         inplace=True,
                     )
                     print(df.to_markdown(**print_settings))

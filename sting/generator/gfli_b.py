@@ -57,8 +57,8 @@ class InitialConditionsEMT(NamedTuple):
 @dataclass(slots=True)
 class GFLIb:
     """GFLI that has L filter, PLL, DC-side with voltage control."""
-    idx: int = field(default=-1, init=False)
-    bus_idx: int
+    id: int = field(default=-1, init=False)
+    bus_id: int
     p_min: float	
     p_max: float
     q_min: float
@@ -107,7 +107,7 @@ class GFLIb:
         return 2*np.pi*self.fbase
     
     def _load_power_flow_solution(self, power_flow_instance):
-        sol = power_flow_instance.generators.loc[f"{self.type}_{self.idx}"]
+        sol = power_flow_instance.generators.loc[f"{self.type}_{self.id}"]
         self.pf  = PowerFlowVariables(p_bus = sol.p.item(),
                                         q_bus = sol.q.item(),
                                         vmag_bus = sol.bus_vmag.item(),
@@ -262,7 +262,7 @@ class GFLIb:
                                     name=['i_bus_D', 'i_bus_Q'],
                                     init=[i_bus_D, i_bus_Q])
 
-        ssm = StateSpaceModel.from_interconnected(components, connections, u, y, component_label=f"{self.type}_{self.idx}")
+        ssm = StateSpaceModel.from_interconnected(components, connections, u, y, component_label=f"{self.type}_{self.id}")
 
         self.ssm = ssm        
         

@@ -51,7 +51,7 @@ class Stream:
         if index:
             attrs.append(index)
         else:
-            attrs.append("idx")
+            attrs.append("id")
             class_name = self.copy().map(lambda x: type(x).__name__).to_list()
 
         selection = self.select(*attrs)
@@ -63,8 +63,8 @@ class Stream:
 
             # Create a default index like "inf_src_1"
             df["__name__"] = class_name
-            df["index"] = df["__name__"].replace(self._index_map) + "_" + df["idx"].astype(str)
-            df = df.set_index("index").drop(columns=["__name__", "idx"])
+            df["index"] = df["__name__"].replace(self._index_map) + "_" + df["id"].astype(str)
+            df = df.set_index("index").drop(columns=["__name__", "id"])
 
         df.index.name = index_name
 

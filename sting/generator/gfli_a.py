@@ -53,8 +53,9 @@ class InitialConditionsEMT(NamedTuple):
 # -----------
 @dataclass(slots=True)
 class GFLIa:
-    idx: int = field(default=-1, init=False)
-    bus_idx: str
+    id: int = field(default=-1, init=False)
+    bus: str
+    bus_id: int = None
     p_min: float
     p_max: float
     q_min: float
@@ -99,9 +100,12 @@ class GFLIa:
     @property
     def wbase(self):
         return 2 * np.pi * self.fbase
+    
+    def assign_bus_id(self, buses: list):
+        self.bus_id = next((n for n in buses if n.id == self.bus_id)).id
 
     def _load_power_flow_solution(self, power_flow_instance):
-        sol = power_flow_instance.generators.loc[f"{self.type}_{self.idx}"]
+        sol = power_flow_instance.generators.loc[f"{self.type}_{self.id}"]
         self.pf = PowerFlowVariables(
                                     p_bus=sol.p.item(),
                                     q_bus=sol.q.item(),
@@ -222,7 +226,7 @@ class GFLIa:
                                 init=[i_bus_D, i_bus_Q])
 
         # Generate small-signal model
-        ssm = StateSpaceModel.from_interconnected(components, connections, u, y, component_label=f"{self.type}_{self.idx}")
+        ssm = StateSpaceModel.from_interconnected(components, connections, u, y, component_label=f"{self.type}_{self.id}")
 
         self.ssm = ssm  
 

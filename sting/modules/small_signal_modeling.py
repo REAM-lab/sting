@@ -44,7 +44,7 @@ class ComponentSSM(NamedTuple):
             Index of the component in its corresponding list in the system.
     """
     type: str
-    idx: int
+    id: int
 
 # ----------------
 # Main class
@@ -74,7 +74,7 @@ class SmallSignalModel:
                 and hasattr(component, "_calculate_emt_initial_conditions") 
                 and hasattr(component, "_build_small_signal_model")
                 ):
-                components.append(ComponentSSM(type = component.type, idx = component.idx))
+                components.append(ComponentSSM(type = component.type, id = component.id))
         
         self.components = components
 
@@ -84,7 +84,7 @@ class SmallSignalModel:
         Apply a method to the components for small-signal modeling.
         """
         for c in self.components:
-               component = getattr(self.system, c.type)[c.idx-1]
+               component = getattr(self.system, c.type)[c.id]
                getattr(component, method)(*args)
 
     def get_ccm_matrices(self):

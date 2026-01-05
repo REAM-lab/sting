@@ -38,26 +38,28 @@ class VariablesEMT(NamedTuple):
 
 @dataclass(slots=True)
 class BranchSeriesRL:
-    idx: int = field(default=-1, init=False)
-    from_bus: int
-    to_bus: int
-    sbase: float
-    vbase: float
-    fbase: float
-    r: float
-    l: float
-    name: str = field(default_factory=str)
+    id: int = field(default=-1, init=False)
+    name: str 
+    from_bus: str
+    to_bus: str
+    sbase_VA: float
+    vbase_V: float
+    fbase_Hz: float
+    r_pu: float
+    l_pu: float
     tags: ClassVar[list[str]] = ["branch"]
     pf: Optional[PowerFlowVariables] = None
     emt_init: Optional[InitialConditionsEMT] = None
     type: str = "se_rl"
     ssm: Optional[StateSpaceModel] = None
     variables_emt: Optional[VariablesEMT] = None
-    idx_variables_emt: Optional[dict] = None
+    id_variables_emt: Optional[dict] = None
+    from_bus_id: int = None
+    to_bus_id: int = None
 
 
     def _load_power_flow_solution(self, power_flow_instance):
-        sol = power_flow_instance.branches.loc[f"se_rl_{self.idx}"]
+        sol = power_flow_instance.branches.loc[f"{self.type}_{self.id}"]
         self.pf = PowerFlowVariables(
             vmag_from_bus=sol.from_bus_vmag.item(),
             vphase_from_bus=sol.from_bus_vphase.item(),
@@ -66,6 +68,10 @@ class BranchSeriesRL:
         )
 
     def _calculate_emt_initial_conditions(self):
+        
+        r = self.r_pu
+        l = self.l_pu
+
         vmag_from_bus = self.pf.vmag_from_bus
         vphase_from_bus = self.pf.vphase_from_bus
 
@@ -75,7 +81,7 @@ class BranchSeriesRL:
         v_from_bus_DQ = vmag_from_bus * np.exp(vphase_from_bus * np.pi / 180 * 1j)
         v_to_bus_DQ = vmag_to_bus * np.exp(vphase_to_bus * np.pi / 180 * 1j)
 
-        i_br_DQ = (v_from_bus_DQ - v_to_bus_DQ) / (self.r + 1j * self.l)
+        i_br_DQ = (v_from_bus_DQ - v_to_bus_DQ) / (r + 1j * l)
 
         self.emt_init = InitialConditionsEMT(
             vmag_from_bus=vmag_from_bus,
@@ -92,9 +98,9 @@ class BranchSeriesRL:
 
     def _build_small_signal_model(self):
 
-        rse = self.r
-        lse = self.l
-        wb = 2 * np.pi * self.fbase
+        rse = self.r_pu
+        lse = self.l_pu
+        wb = 2 * np.pi * self.fbase_Hz
 
         # Define state-space matrices (turn off code formatters for matrices)
         # fmt: off
@@ -112,7 +118,7 @@ class BranchSeriesRL:
 
         u = DynamicalVariables(
             name=["v_from_bus_D", "v_from_bus_Q", "v_to_bus_D", "v_to_bus_D"],
-            component=f"se_rl_{self.idx}",
+            component=f"se_rl_{self.id}",
             type=["grid", "grid", "grid", "grid"],
             init=[
                 self.emt_init.v_from_bus_D,
@@ -124,7 +130,7 @@ class BranchSeriesRL:
 
         x = DynamicalVariables(
             name=["i_br_D", "i_br_Q"],
-            component=f"se_rl_{self.idx}",
+            component=f"se_rl_{self.id}",
             init=[self.emt_init.i_br_D, self.emt_init.i_br_Q],
         )
         y = copy.deepcopy(x)
@@ -140,7 +146,7 @@ class BranchSeriesRL:
 
         x = DynamicalVariables(
             name=["i_br_a", "i_br_b", "i_br_c"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
             init=[i_br_a, i_br_b, i_br_c],
         )
 
@@ -148,14 +154,14 @@ class BranchSeriesRL:
         u = DynamicalVariables(
             name=["v_from_bus_a", "v_from_bus_b", "v_from_bus_c", 
                   "v_to_bus_a", "v_to_bus_b", "v_to_bus_c"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
             type=["grid", "grid", "grid", "grid", "grid", "grid"],
         )
 
         # Outputs
         y = DynamicalVariables(
             name=["i_br_a", "i_br_b", "i_br_c"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
         )
 
         self.variables_emt = VariablesEMT(x=x, u=u, y=y)
@@ -208,7 +214,7 @@ class BranchSeriesRL:
         fig.update_xaxes(title_text='Time [s]', row=1, col=2)
         fig.update_yaxes(title_text='i_br_Q [p.u.]', row=1, col=2)
 
-        name = f"{self.type}_{self.idx}"
+        name = f"{self.type}_{self.id}"
         fig.update_layout(  title_text = name,
                             title_x=0.5,
                             showlegend = False,

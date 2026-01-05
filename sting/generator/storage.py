@@ -10,7 +10,7 @@ import pyomo.environ as pyo
 # ----------------
 @dataclass(slots=True)
 class Storage:
-    idx: int = field(default=-1, init=False)
+    id: int = field(default=-1, init=False)
     storage: str
     technology: str
     bus: str
@@ -28,10 +28,7 @@ class Storage:
     c2_USDperMWh2: float
 
     def __repr__(self):
-        return f"Storage(idx={self.idx})"
-
-    def __hash__(self):
-        return hash(self.idx)
+        return f"Storage(id={self.id})"
 
 def construct_capacity_expansion_model(system, model, model_settings):
 

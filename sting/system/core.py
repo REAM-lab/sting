@@ -76,6 +76,9 @@ class System:
 
         print("... ok.")
 
+    def __post_init__(self):
+        self.apply("assign_bus_id", self.bus)
+
     @classmethod
     def from_csv(cls, components=None, case_directory=os.getcwd()):
         """
@@ -154,6 +157,8 @@ class System:
 
             print("... ok.")
 
+        self.apply("assign_bus_id", self.bus)
+        
         return self
 
     def to_csv(self, output_dir=None):
@@ -200,8 +205,8 @@ class System:
         # Get the component string representation (InfiniteSource -> inf_src)
         component_attr = self.class_to_str[type(component).__name__]
         component_list = getattr(self, component_attr)
-        # Assign the component a 1-based index value
-        component.idx = len(component_list) + 1
+        # Assign the component a 0-based index value
+        component.id = len(component_list)
         # Add the component to the list
         component_list.append(component)
         

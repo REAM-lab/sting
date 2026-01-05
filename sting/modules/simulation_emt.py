@@ -41,7 +41,7 @@ class ComponentEMT(NamedTuple):
             Index of the component in its corresponding list in the system.
     """
     type: str
-    idx: int
+    id: int
 
 # ----------------
 # Main class
@@ -80,13 +80,13 @@ class SimulationEMT:
 
         components = []
         for component in self.system:
-            if (    hasattr(component, "idx_variables_emt") 
+            if (    hasattr(component, "id_variables_emt") 
                 and hasattr(component, "define_variables_emt")
                 and hasattr(component, "get_derivative_state_emt")
                 and hasattr(component, "get_output_emt")
                 and hasattr(component, "plot_results_emt")
                 ):
-                components.append(ComponentEMT(type = component.type, idx = component.idx))
+                components.append(ComponentEMT(type = component.type, id = component.id))
         
         self.components = components
     
@@ -96,7 +96,7 @@ class SimulationEMT:
         Apply a method to the components for EMT simulation.
         """
         for c in self.components:
-               component = getattr(self.system, c.type)[c.idx-1]
+               component = getattr(self.system, c.type)[c.id]
                getattr(component, method)(*args)
 
     def get_variables(self):
@@ -136,9 +136,9 @@ class SimulationEMT:
 
         x, u, y = self.variables
         for c in self.components:
-                component = getattr(self.system, c.type)[c.idx-1]
-                id = f"{c.type}_{c.idx}"
-                setattr(component, "idx_variables_emt", {   "x": x.component == id, 
+                component = getattr(self.system, c.type)[c.id]
+                id = f"{c.type}_{c.id}"
+                setattr(component, "id_variables_emt", {    "x": x.component == id, 
                                                             "u": u.component == id,
                                                             "y": y.component == id  })
                                        
@@ -170,9 +170,9 @@ class SimulationEMT:
         """
 
         for c in self.components:
-            component = getattr(self.system, c.type)[c.idx-1]
+            component = getattr(self.system, c.type)[c.id]
             variables = getattr(component, "variables_emt")
-            idx = getattr(component, "idx_variables_emt")
+            idx = getattr(component, "id_variables_emt")
             value = numerical_vector[idx[var_type]]
 
             var_component = getattr(variables, var_type)
@@ -197,9 +197,9 @@ class SimulationEMT:
             self.set_value(t, x, "x")
 
             for c in self.components:
-                component = getattr(self.system, c.type)[c.idx-1]
+                component = getattr(self.system, c.type)[c.id]
                 variables = getattr(component, "variables_emt")
-                idx = getattr(component, "idx_variables_emt")
+                idx = getattr(component, "id_variables_emt")
                 
                 # Update input values
                 u_component = getattr(variables, "u")
@@ -216,9 +216,9 @@ class SimulationEMT:
             self.set_value(t, ustack, "u")
 
             for c in self.components:
-                component = getattr(self.system, c.type)[c.idx-1]
+                component = getattr(self.system, c.type)[c.id]
                 variables = getattr(component, "variables_emt")
-                idx = getattr(component, "idx_variables_emt")
+                idx = getattr(component, "id_variables_emt")
 
                 # Get derivative of state
                 dx = getattr(component, "get_derivative_state_emt")()
@@ -262,7 +262,7 @@ class SimulationEMT:
         print(output_dir, end='')
 
         for c in components:
-            component = getattr(self.system, c.type)[c.idx-1]
+            component = getattr(self.system, c.type)[c.id]
             getattr(component, "plot_results_emt")(output_dir)
     
         print("... ok.")

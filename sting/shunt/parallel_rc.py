@@ -32,42 +32,47 @@ class VariablesEMT(NamedTuple):
 
 @dataclass
 class ShuntParallelRC:
-    idx: int = field(default=-1, init=False)
-    bus_idx: int
-    sbase: float
-    vbase: float
-    fbase: float
-    r: float
-    c: float
+    id: int = field(default=-1, init=False)
+    name: str
+    bus: str
+    sbase_VA: float
+    vbase_V: float
+    fbase_Hz: float
+    r_pu: float
+    c_pu: float
+    bus_id: int = None
     pf: Optional[PowerFlowVariables] = None
     emt_init: Optional[InitialConditionsEMT] = None
     ssm: Optional[StateSpaceModel] = None
-    name: str = field(default_factory=str)
     type: str = "pa_rc"
     tags: ClassVar[list[str]] = ["shunt"]
     variables_emt: Optional[VariablesEMT] = None
-    idx_variables_emt: Optional[dict] = None
+    id_variables_emt: Optional[dict] = None
 
     @property
-    def g(self):
-        return 1 / self.r
+    def g_pu(self):
+        return 1 / self.r_pu
 
     @property
-    def b(self):
-        return 1 / self.c
+    def b_pu(self):
+        return 1 / self.c_pu
 
     def _load_power_flow_solution(self, power_flow_instance):
-        sol = power_flow_instance.shunts.loc[f"pa_rc_{self.idx}"]
+        sol = power_flow_instance.shunts.loc[f"{self.type}_{self.id}"]
         self.pf = PowerFlowVariables(
             vmag_bus=sol.bus_vmag.item(), vphase_bus=sol.bus_vphase.item()
         )
 
     def _calculate_emt_initial_conditions(self):
+        
+        g = self.g_pu
+        b = self.b_pu
+
         vmag_bus = self.pf.vmag_bus
         vphase_bus = self.pf.vphase_bus
 
         v_bus_DQ = vmag_bus * np.exp(vphase_bus * 1j * np.pi / 180)
-        i_bus_DQ = v_bus_DQ * self.g + v_bus_DQ * (1j * self.b)
+        i_bus_DQ = v_bus_DQ * g + v_bus_DQ * (1j * b)
 
         self.emt_init = InitialConditionsEMT(
             vmag_bus=vmag_bus,
@@ -79,9 +84,9 @@ class ShuntParallelRC:
         )
 
     def _build_small_signal_model(self):
-        g = self.g
-        b = self.b
-        wb = 2 * np.pi * self.fbase
+        g = self.g_pu
+        b = self.b_pu
+        wb = 2 * np.pi * self.fbase_Hz
 
         # Define state-space matrices (turn off code formatters for matrices)
         # fmt: off
@@ -99,14 +104,14 @@ class ShuntParallelRC:
 
         u = DynamicalVariables(
             name=["i_bus_D", "i_bus_Q"],
-            component=f"pa_rc_{self.idx}",
+            component=f"pa_rc_{self.id}",
             type=["grid", "grid"],
             init=[self.emt_init.i_bus_D, self.emt_init.i_bus_Q],
         )
 
         x = DynamicalVariables(
             name=["v_bus_D", "v_bus_Q"],
-            component=f"pa_rc_{self.idx}",
+            component=f"pa_rc_{self.id}",
             init=[self.emt_init.v_bus_D, self.emt_init.v_bus_Q],
         )
         y = copy.deepcopy(x)
@@ -122,21 +127,21 @@ class ShuntParallelRC:
 
         x = DynamicalVariables(
             name=["v_bus_a", "v_bus_b", "v_bus_c"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
             init=[v_bus_a, v_bus_b, v_bus_c],
         )
 
         # Inputs
         u = DynamicalVariables(
             name=["i_bus_a", "i_bus_b", "i_bus_c"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
             type=["grid", "grid", "grid"],
         )
 
         # Outputs
         y = DynamicalVariables(
             name=["v_bus_a", "v_bus_b", "v_bus_c"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
         )
 
         self.variables_emt = VariablesEMT(x=x, u=u, y=y)
@@ -150,9 +155,9 @@ class ShuntParallelRC:
         i_bus_a, i_bus_b, i_bus_c = self.variables_emt.u.value
 
         # Get parameters
-        g = self.g
-        b = self.b
-        wb = 2 * np.pi * self.fbase
+        g = self.g_pu
+        b = self.b_pu
+        wb = 2 * np.pi * self.fbase_Hz
 
         # Differential equations
         d_v_bus_a = wb / b * (- g * v_bus_a + i_bus_a)
@@ -188,7 +193,7 @@ class ShuntParallelRC:
         fig.update_xaxes(title_text='Time [s]', row=1, col=2)
         fig.update_yaxes(title_text='v_bus_Q [p.u.]', row=1, col=2)
 
-        name = f"{self.type}_{self.idx}"
+        name = f"{self.type}_{self.id}"
         fig.update_layout(  title_text = name,
                             title_x=0.5,
                             showlegend = False,

@@ -41,8 +41,9 @@ class VariablesEMT(NamedTuple):
 
 @dataclass(slots=True)
 class InfiniteSource:
-    idx: int = field(default=-1, init=False)
-    bus_idx: int
+    id: int = field(default=0, init=False)
+    name: str 
+    bus: str
     p_min: float
     p_max: float
     q_min: float
@@ -52,17 +53,20 @@ class InfiniteSource:
     fbase: float
     r: float
     l: float
+    bus_id: int = None
     pf: Optional[PowerFlowVariables] = None
     emt_init: Optional[InitialConditionsEMT] = None
     ssm: Optional[StateSpaceModel] = None
-    name: str = field(default_factory=str)
     type: str = "inf_src"
     tags: ClassVar[list[str]] = ["generator"]
     variables_emt: Optional[VariablesEMT] = None
-    idx_variables_emt: Optional[dict] = None
+    id_variables_emt: Optional[dict] = None
+
+    def assign_bus_id(self, buses: list):
+        self.bus_id = next((n for n in buses if n.name == self.bus)).id
 
     def _load_power_flow_solution(self, power_flow_instance):
-        sol = power_flow_instance.generators.loc[f"{self.type}_{self.idx}"]
+        sol = power_flow_instance.generators.loc[f"{self.type}_{self.id}"]
         self.pf = PowerFlowVariables(
             p_bus=sol.p.item(),
             q_bus=sol.q.item(),
@@ -105,7 +109,7 @@ class InfiniteSource:
 
         u = DynamicalVariables(
             name=["v_bus_D", "v_bus_Q", "v_ref_d", "v_ref_q"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
             type=["grid", "grid", "device", "device"],
             init=[v_bus_D, v_bus_Q, v_int_d, v_int_q],
         )
@@ -115,7 +119,7 @@ class InfiniteSource:
 
         y = DynamicalVariables(
             name=["i_bus_D", "i_bus_Q"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
             init=[i_bus_D, i_bus_Q],
         )
 
@@ -124,7 +128,7 @@ class InfiniteSource:
 
         x = DynamicalVariables(
             name=["i_bus_d", "i_bus_q"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
             init=[i_bus_d, i_bus_q],
         )
 
@@ -170,7 +174,7 @@ class InfiniteSource:
         
         x = DynamicalVariables(
             name=["i_bus_a", "i_bus_b", "i_bus_c", "angle_ref"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
             init=[i_bus_a, i_bus_b, i_bus_c, angle_ref],
         )
 
@@ -184,7 +188,7 @@ class InfiniteSource:
 
         u = DynamicalVariables(
             name=["v_ref_d", "v_ref_q", "v_bus_a", "v_bus_b", "v_bus_c"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
             type=["device", "device", "grid", "grid", "grid"],
             init=[v_ref_d, v_ref_q, v_bus_a, v_bus_b, v_bus_c],
         )
@@ -192,7 +196,7 @@ class InfiniteSource:
         # Outputs
         y = DynamicalVariables(
             name=["i_bus_a", "i_bus_b", "i_bus_c"],
-            component=f"{self.type}_{self.idx}",
+            component=f"{self.type}_{self.id}",
         )
 
         self.variables_emt = VariablesEMT(x=x, u=u, y=y)
