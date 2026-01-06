@@ -2,7 +2,8 @@
 # Import python packages
 # ----------------------
 from __future__ import annotations
-import numpy as np
+from pyexpat import model
+import polars as pl
 from dataclasses import dataclass, field
 import os
 import pyomo.environ as pyo
@@ -24,17 +25,22 @@ import sting.generator.storage as storage
 class CapacityExpansion:
     system: System
     model: pyo.ConcreteModel = None
-    solver_settings: dict = field(default_factory=lambda: {
-                                                        "solver_name": "mosek_direct",
-                                                        "tee": True,
-                                                        })
-    model_settings: dict = field(default_factory=lambda: {
-                                                        "gen_costs": "quadratic",
-                                                        "consider_shedding": False,
-                                                        })
+    solver_settings: dict = None
+    model_settings: dict = None
     output_directory: str = None
     
     def __post_init__(self):
+
+        if self.solver_settings is None:
+            self.solver_settings = {
+                "solver_name": "gurobi",
+                "tee": True,
+            }
+        if self.model_settings is None:
+            self.model_settings = {
+                "gen_costs": "quadratic",
+                "consider_shedding": False,
+            }
         self.construct()
         self.set_output_folder()
 
@@ -81,7 +87,7 @@ class CapacityExpansion:
         print("   - Objective function ...", end=' ')
         start_time = time.time()
         self.model.eCostPerTp = pyo.Expression(self.system.tp, expr=lambda m, t: m.eGenCostPerTp[t] + m.eStorCostPerTp[t])
-        self.model.eCostPerPeriod = pyo.Expression(expr=lambda m: m.eGenCostPerPeriod + m.eStorCostPerPeriod)
+        self.model.eCostPerPeriod = pyo.Expression(expr=lambda m: m.eGenCostPerPeriod + m.eStorCostPerPeriod + m.eLineCostPerPeriod)
         self.model.eTotalCost = pyo.Expression(expr=lambda m: sum(m.eCostPerTp[t] * t.weight for t in self.system.tp) + m.eCostPerPeriod)
         self.model.obj = pyo.Objective(expr=lambda m: m.eTotalCost, sense=pyo.minimize)
         print(f"ok [{time.time() - start_time:.2f} seconds].")
@@ -100,6 +106,13 @@ class CapacityExpansion:
 
         print(f"> Solver finished with status: {results.solver.status}, termination condition: {results.solver.termination_condition}.")
         print(f"> Objective value: {pyo.value(self.model.obj):.2f} USD.")
+
+        # Export costs summary
+        costs = pl.DataFrame({'component' : ['CostPerTimepoint_USD', 'CostPerPeriod_USD', 'TotalCost_USD'],
+                              'cost' : [  sum( pyo.value(self.model.eCostPerTp[t]) * t.weight for t in self.system.tp), 
+                                            pyo.value(self.model.eCostPerPeriod), 
+                                            pyo.value(self.model.eTotalCost)]})
+        costs.write_csv(os.path.join(self.output_directory, 'costs_summary.csv'))
 
         print("> Exporting capacity expansion results:")
         start_full_time = time.time()

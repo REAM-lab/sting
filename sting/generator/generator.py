@@ -32,6 +32,7 @@ class Generator:
     c2_USDperMWh2: float
     tags: ClassVar[list[str]] = ["generator"]
     bus_id: int = None
+    expand_capacity: bool = True
 
     def assign_indices(self, system):
         self.bus_id = next((n for n in system.bus if n.name == self.bus)).id

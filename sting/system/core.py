@@ -1,4 +1,6 @@
+# -----------------------
 # Import Python packages
+# -----------------------
 import pandas as pd
 import importlib
 import os
@@ -9,13 +11,15 @@ import numpy as np
 from more_itertools import transpose
 from scipy.linalg import block_diag
 from scipy.integrate import solve_ivp
+import polars as pl
 
-# Import source packages
+# -----------------------
+# Import sting code
+# -----------------------
 from sting import __logo__
 from sting import data_files
 from sting.line.core import decompose_lines
 from sting.utils import data_tools
-
 # from sting.shunt.core import combine_shunts
 from sting.utils.graph_matrices import get_ccm_matrices, build_ccm_permutation
 from sting.utils.dynamical_systems import StateSpaceModel, DynamicalVariables
@@ -57,7 +61,7 @@ class System:
         # This file contains information of the lists of components that integrate the system
         data_dir = os.path.dirname(data_files.__file__) # get directory of data_files
         filepath = os.path.join(data_dir, "components_metadata.csv") # get directory 
-        self.components = pd.read_csv(filepath) # get list of components as dataframe
+        self.components = pl.read_csv(filepath) # get list of components as dataframe
 
         # If components are given, only use the relevant meta-data
         if components:
@@ -108,9 +112,7 @@ class System:
 
         print("> Load components via CSV files from:")
 
-        for _, c_name, c_class, c_module, filename in self.components.itertuples(
-            name=None
-        ):
+        for c_name, c_class, c_module, filename in self.components.iter_rows():
             # Expected file with components, for example: gfli_a.csv, or inf_src.csv
             filepath = os.path.join(inputs_dir, filename)
 
@@ -134,8 +136,8 @@ class System:
             #}
 
             # Read only 1 row, do not treat the first row as headers (header=None)
-            df = pd.read_csv(filepath, nrows=1, header=None)
-            csv_header = df.iloc[0].tolist()
+            df = pl.read_csv(filepath, n_rows=1, has_header=False)
+            csv_header = df.row(0)
 
             # Filter out the pairs (key, value) from class_param_types 
             # that are not in csv header
@@ -147,11 +149,11 @@ class System:
 
             # Read components csv
             print(f"\t- '{filepath}'", end=" ")
-            df = pd.read_csv(filepath, dtype=param_types)
+            df = pl.read_csv(filepath, dtypes=param_types)
 
             # Create a component for each row (i.e., component) in the csv
-            for row in df.itertuples(index=False):
-                component = component_class(**row._asdict())
+            for row in df.iter_rows(named=True):
+                component = component_class(**row)
                 # Add the component to the system
                 self.add(component)
 

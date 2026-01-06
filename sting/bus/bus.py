@@ -67,7 +67,7 @@ def construct_capacity_expansion_model(system, model: pyo.ConcreteModel, model_s
     Y = build_admittance_matrix_from_lines(len(N), L)
     B = Y.imag
 
-    model.vTHETA[slack_bus.id, :, :].fix(0.0)
+    model.vTHETA[slack_bus, :, :].fix(0.0)
 
     N_at_bus = {n.id: [N[k] for k in np.nonzero(B[n.id, :])[0] if k != n.id] for n in N}
 
@@ -75,28 +75,21 @@ def construct_capacity_expansion_model(system, model: pyo.ConcreteModel, model_s
     
     def cMinCapPerLine_rule(m, l):
         if l.expand_capacity:
-            return m.vCAPL[l] >= l.cap_existing_power_MW
+            return pyo.Constraint.Skip
         else:
-            if l.cap_existing_power_MW > 0:
-                return m.vCAPL[l] == l.cap_existing_power_MW
-            else:
-                return pyo.Constraint.Skip
+            return m.vCAPL[l] == 0
         
     model.cMinCapPerLine = pyo.Constraint(L, rule=cMinCapPerLine_rule)
     
     def cMaxFlowPerLine_rule(m, l, s, t):
         if (l.expand_capacity) or (l.cap_existing_power_MW > 0):
-            return  (100 * l.x_pu / (l.x_pu**2 + l.r_pu**2) * 
-                    (m.vTHETA[N[l.from_bus_id], s, t] - m.vTHETA[N[l.to_bus_id], s, t])
-                     <= m.vCAPL[l])
+            return  100 * l.x_pu / (l.x_pu**2 + l.r_pu**2) * (m.vTHETA[N[l.from_bus_id], s, t] - m.vTHETA[N[l.to_bus_id], s, t]) <= m.vCAPL[l] + l.cap_existing_power_MW
         else:
             return pyo.Constraint.Skip
         
     def cMinFlowPerLine_rule(m, l, s, t):
         if (l.expand_capacity) or (l.cap_existing_power_MW > 0):
-            return  (100 * l.x_pu / (l.x_pu**2 + l.r_pu**2) * 
-                    (m.vTHETA[N[l.from_bus_id], s, t] - m.vTHETA[N[l.to_bus_id], s, t])
-                     >= -m.vCAPL[l])
+            return  100 * l.x_pu / (l.x_pu**2 + l.r_pu**2) * (m.vTHETA[N[l.from_bus_id], s, t] - m.vTHETA[N[l.to_bus_id], s, t]) >= -(m.vCAPL[l] + l.cap_existing_power_MW)
         else:
             return pyo.Constraint.Skip
    
@@ -122,6 +115,10 @@ def construct_capacity_expansion_model(system, model: pyo.ConcreteModel, model_s
                             m.eGenAtBus[n, s, t] + m.eNetDischargeAtBus[n, s, t] >= 
                             load_lookup.get((n.name, s.name, t.name), 0.0) + m.eFlowAtBus[n, s, t]
                             )
+    
+    # Fixed costs 
+    model.eLineCostPerPeriod = pyo.Expression(
+                                expr = lambda m: sum(l.cost_fixed_power_USDperkW * m.vCAPL[l] * 1000 for l in L))
 
 def export_results_capacity_expansion(system, model: pyo.ConcreteModel, output_directory: str):
 
@@ -130,6 +127,11 @@ def export_results_capacity_expansion(system, model: pyo.ConcreteModel, output_d
                             dfcol_to_field={'line_pi': 'name'}, 
                             value_name='Capacity_MW', 
                             csv_filepath=os.path.join(output_directory, 'line_capacities.csv'))
+    
+    # Export costs
+    costs = pl.DataFrame({'component' : ['CostPerPeriod_USD'],
+                          'cost' : [  pyo.value(model.eLineCostPerPeriod)]})
+    costs.write_csv(os.path.join(output_directory, 'line_costs_summary.csv'))
     
     dct = model.vTHETA.extract_values()
 

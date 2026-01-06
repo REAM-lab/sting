@@ -33,6 +33,7 @@ class Storage:
     c0_USD: float
     c1_USDperMWh: float
     c2_USDperMWh2: float
+    expand_capacity: bool = True
 
     def __repr__(self):
         return f"Storage(id={self.id})"
