@@ -38,16 +38,16 @@ class Generator:
 
     def __hash__(self):
         """Hash based on id attribute, which must be unique for each instance."""
-        return hash(self.id)
+        return self.id
 
 @dataclass(slots=True)
 class CapacityFactor:
     id: int = field(default=-1, init=False)
     site: str
-    technology: str
     scenario: str
     timepoint: str
     capacity_factor: float
+    technology: str = None
 
 def construct_capacity_expansion_model(system, model, model_settings):
 

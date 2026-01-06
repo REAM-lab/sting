@@ -39,7 +39,7 @@ class Storage:
     
     def __hash__(self):
         """Hash based on id attribute, which must be unique for each instance."""
-        return hash(self.id)
+        return self.id
 
 def construct_capacity_expansion_model(system, model, model_settings):
 

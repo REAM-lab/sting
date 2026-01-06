@@ -23,7 +23,7 @@ class Scenario:
 
     def __hash__(self):
         """Hash based on id attribute, which must be unique for each instance."""
-        return hash(self.id)
+        return self.id
 
 @dataclass(slots=True)
 class Timepoint:
@@ -49,7 +49,7 @@ class Timepoint:
 
     def __hash__(self):
         """Hash based on id attribute, which must be unique for each instance."""
-        return hash(self.id)
+        return self.id
 
 @dataclass(slots=True)
 class Timeseries:
@@ -59,6 +59,10 @@ class Timeseries:
     number_of_timepoints: int
     timeseries_scale_to_period: float
     timepoint_ids: Optional[list[int]] = field(default=None, init=False)
+    start: str = None
+    end: str = None
+    period : str = None
+    timepoint_selection_method: str = None
     
     def assign_indices(self, system):
         self.timepoint_ids = [t.id for t in system.tp if t.timeseries == self.name]

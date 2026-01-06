@@ -12,8 +12,8 @@ class LinePiModel:
     x_pu: float
     g_pu: float
     b_pu: float
-    rating_MVA: float
-    transformer: bool = False
+    cap_existing_power_MW: float
+    cost_fixed_power_USDperkW: float = None
     angle_max_deg: float = 360
     angle_min_deg: float = -360
     sbase_VA: float = None
@@ -30,4 +30,4 @@ class LinePiModel:
     
     def __hash__(self):
         """Hash based on id attribute, which must be unique for each instance."""
-        return hash(self.id)
+        return self.id
