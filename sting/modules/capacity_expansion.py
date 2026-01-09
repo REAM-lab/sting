@@ -2,7 +2,6 @@
 # Import python packages
 # ----------------------
 from __future__ import annotations
-from pyexpat import model
 import polars as pl
 from dataclasses import dataclass, field
 import os

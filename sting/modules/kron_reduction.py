@@ -4,10 +4,13 @@
 from sting.system.core import System
 from sting.utils.graph_matrices import build_oriented_incidence_matrix, build_admittance_matrix_from_lines
 from sting.utils.data_tools import mat2cell
+from dataclasses import dataclass
+
 import numpy as np
 import sting.system.selections as sl
 import copy
 
+@dataclass
 class KronReduction():
     system: System
     remove_buses: set = None
@@ -44,16 +47,18 @@ class KronReduction():
         Y = np.diag(np.diag(Y))
 
         # Partition G and Y
-        G = mat2cell(G, [p, q], [p, q])
-        Y = mat2cell(G, [p, q], [p, q])
+        G = mat2cell(G, [p, q], [p, q]) # THIS IS INCORRECT!!! 
+        Y = mat2cell(Y, [p, q], [p, q]) 
 
         
-        P, Q = Y[1,1], Y[2,2]
-        A, B, C, D = G[1,1], G[1,2], G[2,1], G[2,2]
+        P, Q = Y[0,0], Y[1,1] # FIX INDEX!!
+        A, B, C, D = G[0,0], G[0,1], G[1,0], G[1,1]
         
         alpha = A.T @ P @ A + C.T @ Q @ C
-        beta = A.T @ P @ B + C.T @ Q @ D
-        delta = 
+        beta  = A.T @ P @ B + C.T @ Q @ D
+        delta = B.T @ P @ B + D.T @ Q @ D
+
+        Y_reduced = alpha + beta @ (delta.T @ delta)
         
         return
 
