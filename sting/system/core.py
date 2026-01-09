@@ -104,7 +104,7 @@ class System:
         - self: `System`
                     It contains the components that have data from csv files.
         """
-        start_time = time.time()
+        full_start_time = time.time()
 
         # Get directory of the folder "inputs"
         inputs_dir = os.path.join(case_directory, "inputs") 
@@ -115,6 +115,8 @@ class System:
         print("> Load components via CSV files from:")
 
         for c_name, c_class, c_module, filename in self.components.iter_rows():
+
+            start_time = time.time()
             # Expected file with components, for example: gfli_a.csv, or inf_src.csv
             filepath = os.path.join(inputs_dir, filename)
 
@@ -163,6 +165,8 @@ class System:
 
         self.apply("assign_indices", self)
         
+        print(f"> Total: [{time.time() - full_start_time:.2f} seconds].")
+
         return self
 
     def to_csv(self, output_dir=None):

@@ -55,8 +55,13 @@ def construct_capacity_expansion_model(system, model, model_settings):
     # Filter energy storage units by bus
     E_AT_BUS = [[e for e in E if e.bus == n.name] for n in N]
     
-    model.vDISCHA = pyo.Var(E, S, T, within=pyo.NonNegativeReals)
-    model.vCHARGE = pyo.Var(E, S, T, within=pyo.NonNegativeReals)
+    if model_settings.get("consider_single_storage_injection", False):
+            model.vDISCHA = pyo.Var(E, S, T, within=pyo.Reals)
+    else:
+            model.vDISCHA = pyo.Var(E, S, T, within=pyo.NonNegativeReals)
+            model.vCHARGE = pyo.Var(E, S, T, within=pyo.NonNegativeReals)
+
+
     model.vSOC = pyo.Var(E, S, T, within=pyo.NonNegativeReals)
     model.vPCAP = pyo.Var(E, S, within=pyo.NonNegativeReals)
     model.vECAP = pyo.Var(E, S, within=pyo.NonNegativeReals)
@@ -84,10 +89,16 @@ def construct_capacity_expansion_model(system, model, model_settings):
     model.cPowerCapStor = pyo.Constraint(E, S, rule=cPowerCapStor_rule)
 
     # Define constraints for energy storage systems
-    model.cMaxCharge = pyo.Constraint(E, S, T, rule=lambda m, e, s, t: 
+    if model_settings.get("consider_single_storage_injection", False):
+        model.cMaxCharge = pyo.Constraint(E, S, T, rule=lambda m, e, s, t: 
+                                          m.vDISCHA[e, s, t] >= - (m.vPCAP[e, s] + e.cap_existing_power_MW))
+        model.cMaxDischa = pyo.Constraint(E, S, T, rule=lambda m, e, s, t: 
+                                          m.vDISCHA[e, s, t] <= m.vPCAP[e, s] + e.cap_existing_power_MW)
+    else:
+        model.cMaxCharge = pyo.Constraint(E, S, T, rule=lambda m, e, s, t: 
                         m.vCHARGE[e, s, t] <= m.vPCAP[e, s] + e.cap_existing_power_MW)
     
-    model.cMaxDischa = pyo.Constraint(E, S, T, rule=lambda m, e, s, t: 
+        model.cMaxDischa = pyo.Constraint(E, S, T, rule=lambda m, e, s, t: 
                         m.vDISCHA[e, s, t] <= m.vPCAP[e, s] + e.cap_existing_power_MW)
 
     E_fixduration_expandable = [e for e in E if ((e.duration_hr > 0) and (e.expand_capacity))]
@@ -101,20 +112,26 @@ def construct_capacity_expansion_model(system, model, model_settings):
 
     # SOC in the next time is a function of SOC in the previous time
     # with circular wrapping for the first and last timepoints within a timeseries
-    model.cStateOfCharge = pyo.Constraint(E, S, T, rule=lambda m, e, s, t: 
+    if model_settings.get("consider_single_storage_injection", False):
+        model.cStateOfCharge = pyo.Constraint(E, S, T, rule=lambda m, e, s, t: 
+                        m.vSOC[e, s, t] == m.vSOC[e, s, T[t.prev_timepoint_id]] +
+                                        t.duration_hr*(- m.vDISCHA[e, s, t]) )
+    else:
+        model.cStateOfCharge = pyo.Constraint(E, S, T, rule=lambda m, e, s, t: 
                         m.vSOC[e, s, t] == m.vSOC[e, s, T[t.prev_timepoint_id]] +
                                         t.duration_hr*(m.vCHARGE[e, s, t]*e.efficiency_charge 
                                                         - m.vDISCHA[e, s, t]*1/e.efficiency_discharge) )
-    # Power generation by bus
-    model.eNetDischargeAtBus = pyo.Expression(N, S, T, rule=lambda m, n, s, t: 
+        model.eNetDischargeAtBus = pyo.Expression(N, S, T, rule=lambda m, n, s, t: 
                     - sum(m.vCHARGE[e, s, t] for e in E_AT_BUS[n.id]) 
                     + sum(m.vDISCHA[e, s, t] for e in E_AT_BUS[n.id]) )
 
     # Storage cost per timepoint
-    model.eStorCostPerTp = pyo.Expression(T, rule=lambda m, t: 
-                     1/len(S)*(sum(s.probability * (sum(e.cost_variable_USDperMWh * m.vCHARGE[e, s, t] for e in E)) for s in S) ) )
+    if model_settings.get("consider_single_storage_injection", False):
+        model.eStorCostPerTp = pyo.Expression(T, rule=lambda m, t: 0.0 )
+    else:
+        model.eStorCostPerTp = pyo.Expression(T, rule=lambda m, t: 
+                1/len(S)*(sum(s.probability * (sum(e.cost_variable_USDperMWh * (m.vCHARGE[e, s, t] + m.vDISCHA[e, s, t]) for e in E)) for s in S) ) )
     
-
     # Storage cost per period
     model.eStorCostPerPeriod = pyo.Expression(expr = lambda m: 
                      1/len(S)*(sum( s.probability * (sum(e.cost_fixed_power_USDperkW * m.vPCAP[e, s] * 1000 
@@ -129,14 +146,22 @@ def export_results_capacity_expansion(system, model: pyo.ConcreteModel, output_d
     # Export discharge and charge results
     df1 = pyovariable_to_df(model.vDISCHA, 
                             dfcol_to_field={'storage': 'name', 'scenario': 'name', 'timepoint': 'name'}, 
-                            value_name='Discharge_MW')
+                            value_name='discharge_MW')
     
-    df2 = pyovariable_to_df(model.vCHARGE, 
+    if hasattr(model, 'vCHARGE'):
+        df2 = pyovariable_to_df(model.vCHARGE, 
                             dfcol_to_field={'storage': 'name', 'scenario': 'name', 'timepoint': 'name'}, 
-                            value_name='Charge_MW')
+                            value_name='charge_MW')
     
-    df = df1.join(df2, on=['storage', 'scenario', 'timepoint'])
-    df.write_csv(os.path.join(output_directory, 'storage_dispatch.csv'))
+        df1 = df1.join(df2, on=['storage', 'scenario', 'timepoint'])
+    
+    # Join with state of charge results
+    df3 = pyovariable_to_df(model.vSOC, 
+                            dfcol_to_field={'storage': 'name', 'scenario': 'name', 'timepoint': 'name'}, 
+                            value_name='state_of_charge_MWh')
+    df1 = df1.join(df3, on=['storage', 'scenario', 'timepoint'])
+
+    df1.write_csv(os.path.join(output_directory, 'storage_dispatch.csv'))
 
     # Export storage capacity results
     df1 = pyovariable_to_df(model.vPCAP, 

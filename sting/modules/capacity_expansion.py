@@ -41,6 +41,7 @@ class CapacityExpansion:
             self.model_settings = {
                 "gen_costs": "quadratic",
                 "consider_shedding": False,
+                "consider_single_storage_injection": False,
             }
         self.construct()
         self.set_output_folder()
@@ -91,9 +92,9 @@ class CapacityExpansion:
         self.model.eCostPerPeriod = pyo.Expression(expr=lambda m: m.eGenCostPerPeriod + m.eStorCostPerPeriod + m.eLineCostPerPeriod)
         self.model.eTotalCost = pyo.Expression(expr= (sum(self.model.eCostPerTp[t] * t.weight for t in self.system.tp) + self.model.eCostPerPeriod))
         
-        rescaling_factor = 1e-6  # To express the objective in million USD
+        self.model.rescaling_factor_obj = pyo.Param(initialize=1e-6)  # To express the objective in million USD
 
-        self.model.obj = pyo.Objective(expr=rescaling_factor * self.model.eTotalCost, sense=pyo.minimize)
+        self.model.obj = pyo.Objective(expr= self.model.rescaling_factor_obj * self.model.eTotalCost, sense=pyo.minimize)
         print(f"ok [{time.time() - start_time:.2f} seconds].")
 
         full_end_time = time.time()

@@ -106,10 +106,10 @@ def construct_capacity_expansion_model(system, model: pyo.ConcreteModel, model_s
     
     # Power balance at each bus
     load_lookup = {(ld.bus, ld.scenario, ld.timepoint): ld.load_MW for ld in load}
-    model.cPowerBalance = pyo.Constraint(N, S, T,
+    model.cEnergyBalance = pyo.Constraint(N, S, T,
                                          rule=lambda m, n, s, t: 
-                            m.eGenAtBus[n, s, t] + m.eNetDischargeAtBus[n, s, t] == 
-                            load_lookup.get((n.name, s.name, t.name), 0.0) + m.eFlowAtBus[n, s, t]
+                            (m.eGenAtBus[n, s, t] + m.eNetDischargeAtBus[n, s, t]) * t.weight == 
+                            ( load_lookup.get((n.name, s.name, t.name), 0.0) + m.eFlowAtBus[n, s, t] ) * t.weight
                             )
     
     # Fixed costs 
@@ -119,10 +119,20 @@ def construct_capacity_expansion_model(system, model: pyo.ConcreteModel, model_s
 def export_results_capacity_expansion(system, model: pyo.ConcreteModel, output_directory: str):
 
     # Export line capacities 
-    dfx = pyovariable_to_df(model.vCAPL, 
+    pyovariable_to_df(model.vCAPL, 
                             dfcol_to_field={'line': 'name'}, 
                             value_name='capacity_MW', 
                             csv_filepath=os.path.join(output_directory, 'line_built_capacity.csv'))
+    
+    # Export LMPs
+    df = pyovariable_to_df(model.dual[model.cEnergyBalance], 
+                            dfcol_to_field={'bus': 'name', 'scenario': 'name', 'timepoint': 'name'}, 
+                            value_name='local_marginal_price_USDperMWh')
+    
+    df = df.with_columns(
+        (pl.col('local_marginal_price_USDperMWh') / model.rescaling_factor_obj).alias('local_marginal_price_USDperMWh'))
+    
+    df.write_csv(os.path.join(output_directory, 'local_marginal_prices_USDperMWh.csv'))
     
     # Export costs
     costs = pl.DataFrame({'component' : ['CostPerPeriod_USD'],
