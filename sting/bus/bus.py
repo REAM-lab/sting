@@ -91,7 +91,14 @@ def construct_capacity_expansion_model(system, model: pyo.ConcreteModel, model_s
    
     model.cMaxFlowPerLine = pyo.Constraint(L, S, T, rule=cMaxFlowPerLine_rule)
     model.cMinFlowPerLine = pyo.Constraint(L, S, T, rule=cMinFlowPerLine_rule)
+
+    def cFlowPerBus_rule(m, n, s, t):
+        if n.max_flow_MW is not None:
+            return (-n.max_flow_MW, m.eFlowAtBus[n, s, t], n.max_flow_MW)
+        else:
+            return pyo.Constraint.Skip
     
+    model.cFlowPerBus = pyo.Constraint(N, S, T, rule=cFlowPerBus_rule)
 
     def cDiffAngle_rule(m, l, s, t):
         if (l.angle_min_deg > -360) and (l.angle_max_deg < 360):
