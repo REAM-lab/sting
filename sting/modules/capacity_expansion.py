@@ -62,10 +62,9 @@ class CapacityExpansion:
         """
         Set up the output folder for storing results.
         """
-        output_folder = os.path.join(self.system.case_directory, "outputs", "capacity_expansion")
-        os.makedirs(output_folder, exist_ok=True)
-        self.output_directory = output_folder
-
+        if self.output_directory is None:
+            self.output_directory = os.path.join(self.system.case_directory, "outputs", "capacity_expansion")
+        os.makedirs(self.output_directory, exist_ok=True)
     def construct(self):
         """
         Construct the optimization model for capacity expansion.

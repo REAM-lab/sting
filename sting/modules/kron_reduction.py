@@ -2,13 +2,19 @@
 # Import sting code
 # ------------------
 from sting.system.core import System
-from sting.utils.graph_matrices import build_oriented_incidence_matrix, build_admittance_matrix_from_lines
+from sting.line.pi_model import LinePiModel
+from sting.utils.graph_matrices import build_admittance_matrix_from_lines
 from sting.utils.data_tools import mat2cell
 from dataclasses import dataclass
-
+from scipy.linalg import solve
 import numpy as np
-import sting.system.selections as sl
 import copy
+
+# g - d = Y * z
+#   g: generation
+#   d: demand
+#   z: bus angle (relative to slack)
+
 
 @dataclass
 class KronReduction():
@@ -19,48 +25,64 @@ class KronReduction():
         self.system = copy.deepcopy(self.system)
 
     def reduce(self):
-
-        def sort_function(item):
-            if item in self.remove_buses:
-                return (1, item)
+        
+        first, last = [], []
+        for b in self.system.bus:
+            if b.name in self.remove_buses:
+                last.append(b)
             else:
-                return (0, item)
+                first.append(b)
+        
         
         # Sort all system buses placing buses to remove last
-        self.system.bus.sort(key=sort_function)
-        # Update all indices
+        self.system.bus = []
+        for b in (first + last):
+            self.system.add(b)
+        
+        # Update all line and generator indices
         self.system.apply("assign_indices", self.system)
 
+        # Number of total, unused, and real buses
         n_bus = len(self.system.bus)
         q = len(self.remove_buses)
         p = n_bus - q
 
-        from_bus, to_bus = self.system.query(sl.lines()).select("from_bus_id", "to_bus_id")
-        branch_data = list(zip(from_bus, to_bus))
+        # Build & partition admittance matrix
+        Y = build_admittance_matrix_from_lines(n_bus, self.system.line_pi)
+        (Y_pp, Y_pq), (Y_qp, Y_qq) = mat2cell(Y, [p,q], [p,q])
+        # Back substitute to get reduced matrix
+        invY_qq = solve(Y_qq, np.eye(q))
+        Y_red = Y_pp - Y_pq @ (invY_qq) @ Y_qp
 
-        # g - d = (G' * Y * G) z
-        #   g: generation
-        #   d: demand
-        #   z: bus angle (relative to slack)
-        G = build_oriented_incidence_matrix(n_bus, branch_data) # dims: (n_bus, n_branch)
-        Y = build_admittance_matrix_from_lines(n_bus, self.system.lines) # dims: (n_bus, n_bus)
-        Y = np.diag(np.diag(Y))
+        # Build the new reduced lines
+        self.system.line_pi = []
+        self.system.bus = self.system.bus[:p]
 
-        # Partition G and Y
-        G = mat2cell(G, [p, q], [p, q]) # THIS IS INCORRECT!!! Check dims
-        Y = mat2cell(Y, [p, q], [p, q]) 
+        for i, j in zip(*np.triu_indices(p)):
+            # Skip self loops and unconnected nodes
+            if (i == j) or (Y_red[i, j] == 0):
+                continue
+            
+            y = -Y_red[i, j]
+            z = 1/y
 
-        
-        P, Q = Y[0,0], Y[1,1] # FIX INDEX!!
-        A, B, C, D = G[0,0], G[0,1], G[1,0], G[1,1]
-        
-        alpha = A.T @ P @ A + C.T @ Q @ C
-        beta  = A.T @ P @ B + C.T @ Q @ D
-        delta = B.T @ P @ B + D.T @ Q @ D
+            line = LinePiModel(
+                name=f"Y_kron_{i}{j}",
+                # Line connectivity
+                from_bus=self.system.bus[i].name, from_bus_id=i,
+                to_bus=self.system.bus[j].name, to_bus_id=j,
+                # Line parameters
+                r_pu=z.real, x_pu=z.imag, # Z = R + jX
+                g_pu=y.real, b_pu=y.imag
+            )
+            self.system.add(line)
 
-        Y_reduced = alpha + beta @ (delta.T @ delta)
-        
-        return
 
-    def to_system():
+    def line_cap():
+        # Create graph object
+
+        # for each bus to remove:
+        #.  1. look up buses nearest neighbors
+        #.  3. Create new edges between *all* neighbors with a weight given by min of both edges
+        #.  4. Delete the bus.
         pass

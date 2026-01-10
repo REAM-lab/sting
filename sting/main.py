@@ -12,6 +12,7 @@ from sting.modules.power_flow import PowerFlow
 from sting.modules.simulation_emt import SimulationEMT
 from sting.modules.small_signal_modeling import SmallSignalModel
 from sting.modules.capacity_expansion import CapacityExpansion
+from sting.modules.kron_reduction import KronReduction
 from sting.utils.data_tools import StreamToLogger
 
 # ----------------
@@ -90,3 +91,11 @@ def run_capex(case_directory=os.getcwd(), model_settings=None, solver_settings=N
     capex.solve()
 
     return system
+
+def run_kron(case_directory=os.getcwd()):
+    # Load system from CSV files
+    system = System.from_csv(case_directory=case_directory)
+    kr = KronReduction(system=system, remove_buses={"2"})
+    
+    kr.reduce()
+    return kr.system
