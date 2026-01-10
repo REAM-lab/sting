@@ -1,3 +1,11 @@
+# ----------------------
+# Import python packages
+# ----------------------
+from dataclasses import dataclass
+import copy
+import numpy as np
+from scipy.linalg import solve
+
 # ------------------
 # Import sting code
 # ------------------
@@ -5,23 +13,22 @@ from sting.system.core import System
 from sting.line.pi_model import LinePiModel
 from sting.utils.graph_matrices import build_admittance_matrix_from_lines
 from sting.utils.data_tools import mat2cell
-from dataclasses import dataclass
-from scipy.linalg import solve
-import numpy as np
-import copy
-
-# g - d = Y * z
-#   g: generation
-#   d: demand
-#   z: bus angle (relative to slack)
 
 
+
+# -----------
+# Main class
+# -----------
 @dataclass
 class KronReduction():
+    # g - d = Y * z
+    #   g: generation
+    #   d: demand
+    #   z: bus angle (relative to slack)
     system: System
     remove_buses: set = None
     
-    def __postinit__(self):
+    def __post_init__(self):
         self.system = copy.deepcopy(self.system)
 
     def reduce(self):
